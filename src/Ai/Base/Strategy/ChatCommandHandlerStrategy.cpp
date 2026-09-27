@@ -54,6 +54,8 @@ void ChatCommandHandlerStrategy::InitTriggers(std::vector<TriggerNode*>& trigger
     triggers.push_back(new TriggerNode("flee", { NextAction("flee chat shortcut", relevance) }));
     triggers.push_back(new TriggerNode("tank attack", { NextAction("tank attack chat shortcut", relevance) }));
     triggers.push_back(new TriggerNode("grind", { NextAction("grind chat shortcut", relevance) }));
+    triggers.push_back(new TriggerNode("startdungeon", { NextAction("startdungeon chat shortcut", relevance) }));
+    triggers.push_back(new TriggerNode("stopdungeon", { NextAction("stopdungeon chat shortcut", relevance) }));
     triggers.push_back(new TriggerNode("talk",
         { NextAction("gossip hello", relevance),
         NextAction("talk to quest giver", relevance) }));

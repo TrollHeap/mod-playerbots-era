@@ -69,6 +69,7 @@
 #include "WaitForAttackAction.h"
 #include "WorldBuffAction.h"
 #include "XpGainAction.h"
+#include "DungeonLeadActions.h"
 
 class PlayerbotAI;
 
@@ -138,6 +139,10 @@ public:
         creators["sit"] = &ActionContext::sit;
         creators["aggressive target"] = &ActionContext::aggressive_target;
         creators["attack anything"] = &ActionContext::attack_anything;
+        creators["dungeon lead next"] = &ActionContext::dungeon_lead_next;
+        creators["dungeon lead mark"] = &ActionContext::dungeon_lead_mark;
+        creators["dungeon lead cc watch"] = &ActionContext::dungeon_lead_cc_watch;
+        creators["dungeon lead stop"] = &ActionContext::dungeon_lead_stop;
         creators["attack least hp target"] = &ActionContext::attack_least_hp_target;
         creators["attack enemy player"] = &ActionContext::attack_enemy_player;
         creators["emote"] = &ActionContext::emote;
@@ -342,6 +347,10 @@ private:
     static Action* suggest_dungeon(PlayerbotAI* botAI) { return new SuggestDungeonAction(botAI); }
     static Action* aggressive_target(PlayerbotAI* botAI) { return new AggressiveTargetAction(botAI); }
     static Action* attack_anything(PlayerbotAI* botAI) { return new AttackAnythingAction(botAI); }
+    static Action* dungeon_lead_next(PlayerbotAI* botAI) { return new DungeonLeadNextAction(botAI); }
+    static Action* dungeon_lead_mark(PlayerbotAI* botAI) { return new DungeonLeadMarkAction(botAI); }
+    static Action* dungeon_lead_cc_watch(PlayerbotAI* botAI) { return new DungeonLeadCcWatchAction(botAI); }
+    static Action* dungeon_lead_stop(PlayerbotAI* botAI) { return new DungeonLeadStopAction(botAI); }
     static Action* attack_least_hp_target(PlayerbotAI* botAI) { return new AttackLeastHpTargetAction(botAI); }
     static Action* attack_enemy_player(PlayerbotAI* botAI) { return new AttackEnemyPlayerAction(botAI); }
     static Action* stay(PlayerbotAI* botAI) { return new StayAction(botAI); }

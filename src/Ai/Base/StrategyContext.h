@@ -56,6 +56,7 @@
 #include "UsePotionsStrategy.h"
 #include "WaitForAttackStrategy.h"
 #include "WorldPacketHandlerStrategy.h"
+#include "DungeonLeadStrategy.h"
 
 class StrategyContext : public NamedObjectContext<Strategy>
 {
@@ -123,6 +124,7 @@ public:
         creators["group"] = &StrategyContext::group;
         creators["guild"] = &StrategyContext::guild;
         creators["grind"] = &StrategyContext::grind;
+        creators["dungeon lead"] = &StrategyContext::dungeon_lead;
         creators["avoid aoe"] = &StrategyContext::avoid_aoe;
         creators["tank face"] = &StrategyContext::tank_face;
         creators["move random"] = &StrategyContext::move_random;
@@ -198,6 +200,7 @@ private:
     static Strategy* group(PlayerbotAI* botAI) { return new GroupStrategy(botAI); }
     static Strategy* guild (PlayerbotAI* botAI) { return new GuildStrategy(botAI); }
     static Strategy* grind(PlayerbotAI* botAI) { return new GrindingStrategy(botAI); }
+    static Strategy* dungeon_lead(PlayerbotAI* botAI) { return new DungeonLeadStrategy(botAI); }
     static Strategy* avoid_aoe(PlayerbotAI* botAI) { return new AvoidAoeStrategy(botAI); }
     static Strategy* tank_face(PlayerbotAI* botAI) { return new TankFaceStrategy(botAI); }
     static Strategy* move_random(PlayerbotAI* botAI) { return new MoveRandomStrategy(botAI); }

@@ -88,6 +88,8 @@ public:
         creators["stay"] = &ChatTriggerContext::stay;
         creators["flee"] = &ChatTriggerContext::flee;
         creators["grind"] = &ChatTriggerContext::grind;
+        creators["startdungeon"] = &ChatTriggerContext::startdungeon;
+        creators["stopdungeon"] = &ChatTriggerContext::stopdungeon;
         creators["tank attack"] = &ChatTriggerContext::tank_attack;
         creators["talk"] = &ChatTriggerContext::talk;
         creators["enter vehicle"] = &ChatTriggerContext::enter_vehicle;
@@ -202,6 +204,8 @@ private:
     static Trigger* leave_vehicle(PlayerbotAI* botAI) { return new ChatCommandTrigger(botAI, "leave vehicle"); }
     static Trigger* flee(PlayerbotAI* botAI) { return new ChatCommandTrigger(botAI, "flee"); }
     static Trigger* grind(PlayerbotAI* botAI) { return new ChatCommandTrigger(botAI, "grind"); }
+    static Trigger* startdungeon(PlayerbotAI* botAI) { return new ChatCommandTrigger(botAI, "startdungeon"); }
+    static Trigger* stopdungeon(PlayerbotAI* botAI) { return new ChatCommandTrigger(botAI, "stopdungeon"); }
     static Trigger* tank_attack(PlayerbotAI* botAI) { return new ChatCommandTrigger(botAI, "tank attack"); }
     static Trigger* stay(PlayerbotAI* botAI) { return new ChatCommandTrigger(botAI, "stay"); }
     static Trigger* follow(PlayerbotAI* botAI) { return new ChatCommandTrigger(botAI, "follow"); }

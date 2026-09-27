@@ -14,6 +14,7 @@
 #include "BuiltInConfig.h"
 #include "DBUpdater.h"
 #include "DatabaseEnv.h"
+#include "DungeonLeadActions.h"
 #include "PlayerbotsDatabase.h"
 #include <mysqld_error.h>
 #include "GuildTaskMgr.h"
@@ -617,6 +618,13 @@ public:
         PlayerbotWorldThreadProcessor::instance().Update(diff);
         sRandomPlayerbotMgr.UpdateWsgHumanWatcher(diff);
         sRandomPlayerbotMgr.UpdateAI(diff);  // World thread only
+
+        // Dungeon Lead reconciliation loop: continuously re-asserts the desired strategy state for
+        // every active dungeon-lead session (self-throttled internally to ~2s) - see its own
+        // comment in DungeonLeadActions.cpp for why this needs to live here, outside any bot's own
+        // Strategy/Engine state, rather than as a one-shot delay/retry inside the "startdungeon"
+        // action itself.
+        DungeonLead::GuardActiveSessions();
     }
 };
 

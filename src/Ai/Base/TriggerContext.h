@@ -25,6 +25,7 @@
 #include "StuckTriggers.h"
 #include "TravelTriggers.h"
 #include "WaitForAttackTriggers.h"
+#include "DungeonLeadTriggers.h"
 
 class PlayerbotAI;
 
@@ -88,6 +89,9 @@ public:
         creators["loot available"] = &TriggerContext::LootAvailable;
         creators["no attackers"] = &TriggerContext::NoAttackers;
         creators["no target"] = &TriggerContext::NoTarget;
+        creators["dungeon lead idle"] = &TriggerContext::dungeon_lead_idle;
+        creators["dungeon lead boss near"] = &TriggerContext::dungeon_lead_boss_near;
+        creators["dungeon lead left instance"] = &TriggerContext::dungeon_lead_left_instance;
         creators["target in sight"] = &TriggerContext::TargetInSight;
         creators["not dps target active"] = &TriggerContext::not_dps_target_active;
         creators["not dps aoe target active"] = &TriggerContext::not_dps_aoe_target_active;
@@ -339,6 +343,9 @@ private:
     static Trigger* TimerBG(PlayerbotAI* botAI) { return new TimerBGTrigger(botAI); }
     static Trigger* force_rebuff_pending(PlayerbotAI* botAI) { return new ForceRebuffPendingTrigger(botAI); }
     static Trigger* NoTarget(PlayerbotAI* botAI) { return new NoTargetTrigger(botAI); }
+    static Trigger* dungeon_lead_idle(PlayerbotAI* botAI) { return new DungeonLeadIdleTrigger(botAI); }
+    static Trigger* dungeon_lead_boss_near(PlayerbotAI* botAI) { return new DungeonLeadBossNearTrigger(botAI); }
+    static Trigger* dungeon_lead_left_instance(PlayerbotAI* botAI) { return new DungeonLeadLeftInstanceTrigger(botAI); }
     static Trigger* TargetInSight(PlayerbotAI* botAI) { return new TargetInSightTrigger(botAI); }
     static Trigger* not_dps_target_active(PlayerbotAI* botAI) { return new NotDpsTargetActiveTrigger(botAI); }
     static Trigger* not_dps_aoe_target_active(PlayerbotAI* botAI) { return new NotDpsAoeTargetActiveTrigger(botAI); }

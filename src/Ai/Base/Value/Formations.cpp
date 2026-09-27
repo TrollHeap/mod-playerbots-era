@@ -91,6 +91,14 @@ public:
     std::string const GetTargetName() override { return "group leader"; }
 };
 
+class LeaderFormation : public FollowFormation
+{
+public:
+    LeaderFormation(PlayerbotAI* botAI) : FollowFormation(botAI, "leader") {}
+
+    std::string const GetTargetName() override { return "group leader"; }
+};
+
 class QueueFormation : public FollowFormation
 {
 public:
@@ -528,6 +536,13 @@ bool FormationValue::Load(std::string const formation)
 
         value = new MeleeFormation(botAI);
     }
+    else if (formation == "leader")
+    {
+        if (value)
+            delete value;
+
+        value = new LeaderFormation(botAI);
+    }
     else if (formation == "queue")
     {
         if (value)
@@ -618,7 +633,7 @@ bool SetFormationAction::Execute(Event event)
         str << "Invalid formation: |cffff0000" << formation;
         botAI->TellMaster(str);
         botAI->TellMaster(
-            "Please set to any of:|cffffffff chaos (default), near, queue, circle, line, shield, arrow, melee, far");
+            "Please set to any of:|cffffffff chaos (default), near, queue, circle, line, shield, arrow, melee, leader, far");
         return false;
     }
 
