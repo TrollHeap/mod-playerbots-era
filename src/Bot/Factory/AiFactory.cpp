@@ -6,6 +6,7 @@
 
 #include "AiFactory.h"
 #include "BattlegroundMgr.h"
+#include "Config.h"
 #include "DKAiObjectContext.h"
 #include "DruidAiObjectContext.h"
 #include "Engine.h"
@@ -491,7 +492,11 @@ void AiFactory::AddDefaultCombatStrategies(Player* player, PlayerbotAI* const fa
             bgType = player->GetBattleground()->GetBgTypeID(true);
 
         if (bgType == BATTLEGROUND_WS)
+        {
             engine->addStrategy("warsong", false);
+            engine->ChangeStrategy(sConfigMgr->GetOption<std::string>("AiPlayerbot.EraPvpCombatStrategies",
+                "+pvp,+boost,+dps debuff,-passive,-stay"));
+        }
 
         if (bgType == BATTLEGROUND_AB)
             engine->addStrategy("arathi", false);

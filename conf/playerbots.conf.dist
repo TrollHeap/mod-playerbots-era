@@ -1384,6 +1384,10 @@ AiPlayerbot.RandomBotNonCombatStrategies = ""
 AiPlayerbot.CombatStrategies = ""
 AiPlayerbot.NonCombatStrategies = ""
 
+# Era: shared combat style for PvP Life and Warsong Gulch only. Other battlegrounds keep their own strategies.
+# The old PvPLife.Strategies.Combat value is used when this option is absent.
+AiPlayerbot.EraPvpCombatStrategies = "+pvp,+boost,+dps debuff,-passive,-stay"
+
 # Remove "healer dps" strategy on the maps specified below.
 # Default: 1 (enabled)
 AiPlayerbot.HealerDPSMapRestriction = 1
