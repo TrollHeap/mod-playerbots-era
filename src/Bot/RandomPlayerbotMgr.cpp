@@ -1590,6 +1590,21 @@ void RandomPlayerbotMgr::Revive(Player* player)
     RandomTeleportGrindForLevel(player);
 }
 
+static bool IsRandomTeleportDestinationClear(Map* map, Player* bot, WorldLocation const& loc)
+{
+    // Check the destination too: the existing nearby-player guard only covers departure.
+    for (auto const& reference : map->GetPlayers())
+    {
+        Player* player = reference.GetSource();
+        if (player == bot || !(player->GetPhaseMask() & bot->GetPhaseMask()))
+            continue;
+        float distance = GET_PLAYERBOT_AI(player) ? 8.0f : 150.0f;
+        if (player->IsWithinDist3d(loc.GetPositionX(), loc.GetPositionY(), loc.GetPositionZ(), distance))
+            return false;
+    }
+    return true;
+}
+
 void RandomPlayerbotMgr::RandomTeleport(Player* bot, std::vector<WorldLocation>& locs, bool hearth)
 {
     if (PlayerbotAI* ai = GET_PLAYERBOT_AI(bot); ai && ai->GetCityResidentZone())
@@ -1704,16 +1719,18 @@ void RandomPlayerbotMgr::RandomTeleport(Player* bot, std::vector<WorldLocation>&
                   zone->area_name[locale], area->ID, area->area_name[locale], zone->area_level, area->area_level, x, y,
                   z, i + 1, tlocs.size());
 
-        if (hearth)
-        {
-            bot->SetHomebind(loc, zone->ID);
-        }
-
         // Prevent blink to be detected by visible real players
         if (botAI->HasPlayerNearby(150.0f))
         {
             break;
         }
+
+        WorldLocation destination(loc.GetMapId(), x, y, z, loc.GetOrientation());
+        if (!IsRandomTeleportDestinationClear(map, bot, destination))
+            continue;
+
+        if (hearth)
+            bot->SetHomebind(destination, zone->ID);
 
         bot->GetMotionMaster()->Clear();
         PlayerbotAI* botAI = GET_PLAYERBOT_AI(bot);

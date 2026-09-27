@@ -997,7 +997,7 @@ private:
     std::map<uint8, std::vector<WorldLocation>> allianceHubsPerLevelCache;
     std::map<uint8, std::vector<WorldLocation>> hordeHubsPerLevelCache;
     std::map<uint8, std::vector<BankerLocation>> bankerLocsPerLevelCache;
-    std::unordered_map<uint32, WorldLocation> bankerEntryToLocation;
+    std::map<uint32, std::vector<WorldLocation>> cityArrivalLocations;
     std::map<uint8, std::vector<WorldLocation>> locsPerLevelCache;
     std::unordered_map<uint32, std::vector<WorldLocation>> creatureSpawnsByTemplate;
     std::map<uint32, LevelBracket> zone2LevelBracket;

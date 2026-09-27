@@ -4521,9 +4521,9 @@ std::vector<WorldLocation> TravelMgr::GetCityLocations(Player* bot)
            )
             validBankerCities.insert(capital->zoneId);
     }
-    // Fallback if no valid cities
+    // No weighted fallback to fixed banker coordinates.
     if (validBankerCities.empty())
-        return fallbackLocations;
+        return {};
 
     // Apply weights to valid cities
     std::vector<uint32> weightedCities;
@@ -4537,22 +4537,16 @@ std::vector<WorldLocation> TravelMgr::GetCityLocations(Player* bot)
             weightedCities.push_back(zoneId);
     }
 
-    // Fallback if no valid cities
     if (weightedCities.empty())
-        return fallbackLocations;
+        return {};
 
-    // Pick a weighted city randomly, then a random banker in that city
+    // Keep the city weights, but distribute Era visitors across outdoor guard spawns.
     uint32 selectedCity = weightedCities[urand(0, weightedCities.size() - 1)];
-    Capital const* selectedCapital = FindCapitalByZone(selectedCity);
-    if (!selectedCapital)
-        return fallbackLocations;
-    auto const& bankers = selectedCapital->bankers;
-    uint32 selectedBankerEntry = bankers[urand(0, bankers.size() - 1)];
-    auto locIt = bankerEntryToLocation.find(selectedBankerEntry);
-    if (locIt != bankerEntryToLocation.end())
-        return { locIt->second };
-    // Fallback if something went wrong
-    return fallbackLocations;
+    auto locations = cityArrivalLocations.find(selectedCity);
+    if (locations != cityArrivalLocations.end())
+        return locations->second;
+    // No safe city arrivals: let the caller use normal outdoor destinations.
+    return {};
 }
 
 void TravelMgr::PrepareZone2LevelBracket()
@@ -4637,6 +4631,7 @@ void TravelMgr::PrepareZone2LevelBracket()
 
 void TravelMgr::PrepareDestinationCache()
 {
+    cityArrivalLocations.clear();
     uint32 maxLevel = sWorld->getIntConfig(CONFIG_MAX_PLAYER_LEVEL);
     uint32 flightMastersCount = 0;
     uint32 innkeepersCount = 0;
@@ -4672,6 +4667,15 @@ void TravelMgr::PrepareDestinationCache()
             continue;
 
         uint32 areaId = area->zone ? area->zone : area->ID;
+
+        if (FindCapitalByZone(areaId) && (creatureTemplate->flags_extra & CREATURE_FLAG_EXTRA_GUARD))
+        {
+            PositionFullTerrainStatus terrain;
+            map->GetFullTerrainStatusForPosition(PHASEMASK_NORMAL, x, y, z, DEFAULT_COLLISION_HEIGHT, terrain);
+            if (terrain.outdoors && terrain.floorZ > INVALID_HEIGHT && std::abs(terrain.floorZ - z) < 3.0f &&
+                !map->IsInWater(PHASEMASK_NORMAL, x, y, z, DEFAULT_COLLISION_HEIGHT))
+                cityArrivalLocations[areaId].emplace_back(mapId, x, y, terrain.floorZ + 0.05f, orient);
+        }
 
         // CREATURES
         if (creatureTemplate->npcflag == 0 &&
@@ -4802,11 +4806,13 @@ void TravelMgr::PrepareDestinationCache()
                     continue;
 
                 bankerLocsPerLevelCache[(uint8)l].push_back(bLoc);
-                bankerEntryToLocation[bLoc.entry] = bLoc.loc;
             }
             bankerCount++;
         }
     }
+
+    for (auto const& [city, locations] : cityArrivalLocations)
+        LOG_INFO("playerbots", "Era city arrival anchors: {} = {}", city, locations.size());
 
     // Process temporary caches
     for (auto const& [gridTuple, creatureDataList] : tempLocsCache)
