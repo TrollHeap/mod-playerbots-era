@@ -6,6 +6,7 @@
 
 #include "Playerbots.h"
 #include "BattleGroundTactics.h"
+#include <algorithm>
 #include "BattlefieldScript.h"
 #include "Channel.h"
 #include "CheckMountStateAction.h"
@@ -16,6 +17,9 @@
 #include "PlayerbotsDatabase.h"
 #include <mysqld_error.h>
 #include "GuildTaskMgr.h"
+#include "Item.h"
+#include "MovementHandlerScript.h"
+#include "Opcodes.h"
 #include "PlayerScript.h"
 #include "PlayerbotAIConfig.h"
 #include "PlayerbotCommandScript.h"
@@ -24,6 +28,9 @@
 #include "PlayerbotWorldThreadProcessor.h"
 #include "RandomPlayerbotMgr.h"
 #include "ScriptMgr.h"
+#include "Spell.h"
+#include "SpellAuras.h"
+#include "UnitScript.h"
 #include "cmath"
 
 class PlayerbotsDatabaseScript : public DatabaseScript
@@ -130,7 +137,23 @@ public:
         PLAYERHOOK_CAN_PLAYER_USE_GUILD_CHAT,
         PLAYERHOOK_CAN_PLAYER_USE_CHANNEL_CHAT,
         PLAYERHOOK_ON_GIVE_EXP,
-        PLAYERHOOK_ON_BEFORE_TELEPORT
+        PLAYERHOOK_ON_BEFORE_TELEPORT,
+        PLAYERHOOK_ON_SPELL_CAST,
+        PLAYERHOOK_ON_PLAYER_JUST_DIED,
+        PLAYERHOOK_ON_BATTLEGROUND_DESERTION,
+        PLAYERHOOK_ON_PVP_KILL,
+        PLAYERHOOK_ON_EMOTE,
+        PLAYERHOOK_ON_TEXT_EMOTE,
+        PLAYERHOOK_ON_ADD_TO_BATTLEGROUND,
+        PLAYERHOOK_ON_REMOVE_FROM_BATTLEGROUND,
+        PLAYERHOOK_ON_PLAYER_JOIN_BG,
+        PLAYERHOOK_ON_EQUIP,
+        PLAYERHOOK_ON_UNEQUIP_ITEM,
+        PLAYERHOOK_CAN_CAST_ITEM_USE_SPELL,
+        PLAYERHOOK_ON_PLAYER_RESURRECT,
+        PLAYERHOOK_ON_PLAYER_LEARN_TALENTS,
+        PLAYERHOOK_ON_PLAYER_ENTER_COMBAT,
+        PLAYERHOOK_ON_PLAYER_LEAVE_COMBAT
     }) {}
 
     void OnPlayerLogin(Player* player) override
@@ -220,6 +243,98 @@ public:
         {
             playerbotMgr->UpdateAI(diff);
         }
+    }
+
+    void OnPlayerSpellCast(Player* player, Spell* spell, bool skipCheck) override
+    {
+        if (!spell || skipCheck)
+            return;
+
+        Unit* target = spell->GetOriginalTarget();
+        if (GET_PLAYERBOT_AI(player))
+            sRandomPlayerbotMgr.RecordWsgBotSpell(player, spell->GetSpellInfo()->Id,
+                                                   target ? target->GetGUID() : ObjectGuid::Empty);
+        else
+            sRandomPlayerbotMgr.RecordWsgHumanSpell(player, spell->GetSpellInfo()->Id,
+                                                    target ? target->GetGUID() : ObjectGuid::Empty);
+    }
+
+    void OnPlayerJustDied(Player* player) override
+    {
+        sRandomPlayerbotMgr.RecordWsgHumanEvent(player, "death", 0, ObjectGuid::Empty);
+    }
+
+    void OnPlayerBattlegroundDesertion(Player* player, BattlegroundDesertionType const /*desertionType*/) override
+    {
+        sRandomPlayerbotMgr.RecordWsgHumanEvent(player, "deserter", 0, ObjectGuid::Empty);
+    }
+
+    void OnPlayerPVPKill(Player* killer, Player* killed) override
+    {
+        sRandomPlayerbotMgr.RecordWsgHumanEvent(killer, "pvp_kill", 0, killed ? killed->GetGUID() : ObjectGuid::Empty);
+    }
+
+    void OnPlayerEmote(Player* player, uint32 emote) override
+    {
+        sRandomPlayerbotMgr.RecordWsgHumanEvent(player, "emote", emote, ObjectGuid::Empty);
+    }
+
+    void OnPlayerTextEmote(Player* player, uint32 textEmote, uint32 /*emoteNum*/, ObjectGuid targetGuid) override
+    {
+        sRandomPlayerbotMgr.RecordWsgHumanEvent(player, "text_emote", textEmote, targetGuid);
+    }
+
+    void OnPlayerAddToBattleground(Player* player, Battleground* /*bg*/) override
+    {
+        sRandomPlayerbotMgr.RecordWsgHumanEvent(player, "bg_enter", 0, ObjectGuid::Empty);
+    }
+
+    void OnPlayerRemoveFromBattleground(Player* player, Battleground* /*bg*/) override
+    {
+        sRandomPlayerbotMgr.RecordWsgHumanEvent(player, "bg_leave", 0, ObjectGuid::Empty);
+    }
+
+    void OnPlayerJoinBG(Player* player) override
+    {
+        sRandomPlayerbotMgr.RecordWsgHumanEvent(player, "bg_queue", 0, ObjectGuid::Empty);
+    }
+
+    void OnPlayerEquip(Player* player, Item* item, uint8 /*bag*/, uint8 /*slot*/, bool /*update*/) override
+    {
+        sRandomPlayerbotMgr.RecordWsgHumanEvent(player, "equip", item ? item->GetEntry() : 0, ObjectGuid::Empty);
+    }
+
+    void OnPlayerUnequip(Player* player, Item* item) override
+    {
+        sRandomPlayerbotMgr.RecordWsgHumanEvent(player, "unequip", item ? item->GetEntry() : 0, ObjectGuid::Empty);
+    }
+
+    bool OnPlayerCanCastItemUseSpell(Player* player, Item* item, SpellCastTargets const& targets,
+                                     uint8 /*castCount*/, uint32 /*glyphIndex*/) override
+    {
+        sRandomPlayerbotMgr.RecordWsgHumanEvent(player, "item_use_attempt", item ? item->GetEntry() : 0,
+                                                 targets.GetObjectTargetGUID());
+        return true;
+    }
+
+    void OnPlayerResurrect(Player* player, float /*restorePercent*/, bool& /*applySickness*/) override
+    {
+        sRandomPlayerbotMgr.RecordWsgHumanEvent(player, "resurrect", 0, ObjectGuid::Empty);
+    }
+
+    void OnPlayerLearnTalents(Player* player, uint32 talentId, uint32 talentRank, uint32 spellId) override
+    {
+        sRandomPlayerbotMgr.RecordWsgHumanEvent(player, "talent_learn", spellId, ObjectGuid::Empty, talentId << 8 | talentRank);
+    }
+
+    void OnPlayerEnterCombat(Player* player, Unit* enemy) override
+    {
+        sRandomPlayerbotMgr.RecordWsgHumanEvent(player, "combat_enter", 0, enemy ? enemy->GetGUID() : ObjectGuid::Empty);
+    }
+
+    void OnPlayerLeaveCombat(Player* player) override
+    {
+        sRandomPlayerbotMgr.RecordWsgHumanEvent(player, "combat_leave", 0, ObjectGuid::Empty);
     }
 
     using PlayerScript::OnPlayerCanUseChat;  // keep the base overloads visible
@@ -347,6 +462,83 @@ public:
     }
 };
 
+class PlayerbotsMovementHandlerScript : public MovementHandlerScript
+{
+public:
+    PlayerbotsMovementHandlerScript() : MovementHandlerScript("PlayerbotsMovementHandlerScript", {
+        MOVEMENTHOOK_ON_PLAYER_MOVE
+    }) {}
+
+    void OnPlayerMove(Player* player, MovementInfo /*movementInfo*/, uint32 opcode) override
+    {
+        if (opcode == MSG_MOVE_JUMP)
+            sRandomPlayerbotMgr.RecordWsgHumanJump(player);
+    }
+};
+
+class PlayerbotsUnitScript : public UnitScript
+{
+public:
+    PlayerbotsUnitScript() : UnitScript("PlayerbotsUnitScript", true, {
+        UNITHOOK_MODIFY_MELEE_DAMAGE,
+        UNITHOOK_MODIFY_PERIODIC_DAMAGE_AURAS_TICK,
+        UNITHOOK_MODIFY_SPELL_DAMAGE_TAKEN,
+        UNITHOOK_ON_HEAL,
+        UNITHOOK_ON_AURA_APPLY,
+        UNITHOOK_ON_AURA_REMOVE
+    }) {}
+
+    void ModifyMeleeDamage(Unit* target, Unit* attacker, uint32& damage) override
+    {
+        if (Player* player = attacker ? attacker->ToPlayer() : nullptr)
+            sRandomPlayerbotMgr.RecordWsgHumanEvent(player, "damage_melee", 0, target ? target->GetGUID() : ObjectGuid::Empty, damage);
+    }
+
+    void ModifyPeriodicDamageAurasTick(Unit* target, Unit* attacker, uint32& damage, SpellInfo const* spellInfo) override
+    {
+        if (Player* player = attacker ? attacker->ToPlayer() : nullptr)
+            sRandomPlayerbotMgr.RecordWsgHumanEvent(player, "damage_dot", spellInfo ? spellInfo->Id : 0,
+                                                     target ? target->GetGUID() : ObjectGuid::Empty, damage);
+    }
+
+    void ModifySpellDamageTaken(Unit* target, Unit* attacker, int32& damage, SpellInfo const* spellInfo) override
+    {
+        if (Player* player = attacker ? attacker->ToPlayer() : nullptr)
+            sRandomPlayerbotMgr.RecordWsgHumanEvent(player, "damage_spell", spellInfo ? spellInfo->Id : 0,
+                                                     target ? target->GetGUID() : ObjectGuid::Empty, std::max(damage, 0));
+    }
+
+    void OnHeal(Unit* healer, Unit* receiver, uint32& gain) override
+    {
+        if (Player* player = healer ? healer->ToPlayer() : nullptr)
+            sRandomPlayerbotMgr.RecordWsgHumanEvent(player, "heal", 0, receiver ? receiver->GetGUID() : ObjectGuid::Empty, gain);
+    }
+
+    void OnAuraApply(Unit* unit, Aura* aura) override
+    {
+        RecordCrowdControl(unit, aura, "cc_apply");
+    }
+
+    void OnAuraRemove(Unit* unit, AuraApplication* application, AuraRemoveMode /*mode*/) override
+    {
+        RecordCrowdControl(unit, application ? application->GetBase() : nullptr, "cc_remove");
+    }
+
+private:
+    static void RecordCrowdControl(Unit* unit, Aura* aura, char const* event)
+    {
+        if (!unit || !aura)
+            return;
+        uint64 const crowdControl = (1ULL << MECHANIC_SNARE) | (1ULL << MECHANIC_ROOT) | (1ULL << MECHANIC_FEAR) |
+                                    (1ULL << MECHANIC_STUN) | (1ULL << MECHANIC_POLYMORPH) |
+                                    (1ULL << MECHANIC_DISORIENTED) | (1ULL << MECHANIC_SILENCE);
+        if (!(aura->GetSpellInfo()->GetAllEffectsMechanicMask() & crowdControl))
+            return;
+        if (Player* player = ObjectAccessor::GetPlayer(*unit, aura->GetCasterGUID()))
+            sRandomPlayerbotMgr.RecordWsgHumanEvent(player, event, aura->GetId(), unit->GetGUID());
+    }
+};
+
 class PlayerbotsMiscScript : public MiscScript
 {
 public:
@@ -423,6 +615,7 @@ public:
     void OnUpdate(uint32 diff) override
     {
         PlayerbotWorldThreadProcessor::instance().Update(diff);
+        sRandomPlayerbotMgr.UpdateWsgHumanWatcher(diff);
         sRandomPlayerbotMgr.UpdateAI(diff);  // World thread only
     }
 };
@@ -528,6 +721,8 @@ public:
 
     void OnBattlegroundStart(Battleground* bg) override
     {
+        sRandomPlayerbotMgr.BeginWsgHumanWatcherMatch(bg);
+        sRandomPlayerbotMgr.RecordWsgHumanMatchEvent(bg, "match_start");
         BGStrategyData data;
 
         switch (bg->GetBgTypeID())
@@ -555,7 +750,12 @@ public:
         bgStrategies[bg->GetInstanceID()] = data;
     }
 
-    void OnBattlegroundEnd(Battleground* bg, TeamId /*winnerTeam*/) override { bgStrategies.erase(bg->GetInstanceID()); }
+    void OnBattlegroundEnd(Battleground* bg, TeamId winnerTeam) override
+    {
+        sRandomPlayerbotMgr.RecordWsgHumanMatchEvent(bg, "match_end", winnerTeam);
+        sRandomPlayerbotMgr.EndWsgHumanWatcherMatch(bg);
+        bgStrategies.erase(bg->GetInstanceID());
+    }
 };
 
 // Workaround for missing InitEnabledHooksIfNeeded for new BattlefieldScript in ScriptMgr
@@ -580,6 +780,8 @@ void AddPlayerbotsScripts()
     new PlayerbotsBattlefieldScript();
     new PlayerbotsDatabaseScript();
     new PlayerbotsPlayerScript();
+    new PlayerbotsMovementHandlerScript();
+    new PlayerbotsUnitScript();
     new PlayerbotsMiscScript();
     new PlayerbotsServerScript();
     new PlayerbotsWorldScript();

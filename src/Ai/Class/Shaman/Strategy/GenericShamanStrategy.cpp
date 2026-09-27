@@ -80,7 +80,7 @@ private:
     {
         return new ActionNode("windfury totem",
                               /*P*/ {},
-                              /*A*/ { NextAction("grounding totem") },
+                              /*A*/ { NextAction("set grounding totem") },
                               /*C*/ {});
     }
     static ActionNode* cleanse_spirit([[maybe_unused]] PlayerbotAI* botAI)

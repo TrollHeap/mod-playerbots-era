@@ -99,6 +99,15 @@ public:
     }
 
     void LogPlayerLocation();
+    void UpdateWsgHumanWatcher(uint32 elapsed);
+    bool BeginWsgHumanWatcherMatch(Battleground* bg);
+    void EndWsgHumanWatcherMatch(Battleground* bg);
+    void RecordWsgHumanSpell(Player* player, uint32 spellId, ObjectGuid targetGuid);
+    void RecordWsgBotSpell(Player* player, uint32 spellId, ObjectGuid targetGuid);
+    void RecordWsgBotEvent(Player* player, char const* event, char const* reason = "unspecified");
+    void RecordWsgHumanJump(Player* player);
+    void RecordWsgHumanEvent(Player* player, char const* event, uint32 spellId, ObjectGuid targetGuid, uint32 amount = 0);
+    void RecordWsgHumanMatchEvent(Battleground* bg, char const* event, TeamId winner = TEAM_NEUTRAL);
     void UpdateAIInternal(uint32 elapsed, bool minimal = false) override;
 
     uint32 activeBots = 0;
@@ -179,6 +188,8 @@ protected:
     void OnBotLoginInternal(Player* const bot) override;
 
 private:
+    bool IsWatchingWsgMatch(Battleground const* bg) const;
+
     RandomPlayerbotMgr() : PlayerbotHolder()
     {
         this->playersLevel = sPlayerbotAIConfig.randombotStartingLevel;
@@ -251,6 +262,9 @@ private:
     std::unordered_map<uint32, BotEventCache> eventCache;
     std::unordered_set<uint32> currentBots;
     uint32 playersLevel;
+    uint32 wsgHumanWatcherElapsed = 0;
+    uint32 wsgHumanWatcherCompletedMatches = 0;
+    std::unordered_map<uint32, uint32> wsgHumanWatcherMatches;
 
     // Account lists
     std::vector<uint32> rndBotTypeAccounts;             // Accounts marked as RNDbot (type 1)

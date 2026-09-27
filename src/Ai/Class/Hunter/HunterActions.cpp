@@ -45,7 +45,7 @@ bool CastImmolationTrapAction::isUseful()
 
 Value<Unit*>* CastFreezingTrap::GetTargetValue()
 {
-    return context->GetValue<Unit*>("cc target", "freezing trap");
+    return context->GetValue<Unit*>("current target");
 }
 
 bool FeedPetAction::Execute(Event /*event*/)

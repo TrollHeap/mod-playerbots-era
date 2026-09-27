@@ -133,6 +133,8 @@ public:
 
     uint32 openGoSpell;
     bool randomBotAutologin;
+    bool wsgHumanWatcher;
+    std::string wsgHumanWatcherDirectory;
     bool botAutologin;
     std::string randomBotMapsAsString;
     float probTeleToBankers;

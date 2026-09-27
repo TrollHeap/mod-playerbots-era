@@ -29,6 +29,7 @@ bool CastLifeTapAction::isUseful() { return AI_VALUE2(uint8, "health", "self tar
 
 Value<Unit*>* CastBanishOnCcAction::GetTargetValue() { return context->GetValue<Unit*>("rti cc target"); }
 Value<Unit*>* CastFearOnCcAction::GetTargetValue() { return context->GetValue<Unit*>("rti cc target"); }
+Value<Unit*>* CastFearAction::GetTargetValue() { return context->GetValue<Unit*>("current target"); }
 
 // Checks if the target marked with the moon icon can be banished
 bool CastBanishOnCcAction::isPossible()
@@ -59,6 +60,19 @@ bool CastFearOnCcAction::isPossible()
         return false;
 
     // Use base class to check spell available, range, etc
+    return CastCrowdControlSpellAction::isPossible();
+}
+
+bool CastFearAction::isPossible()
+{
+    Unit* target = GetTarget();
+    if (!target)
+        return false;
+
+    uint32 creatureType = target->GetCreatureType();
+    if (creatureType == CREATURE_TYPE_MECHANICAL || creatureType == CREATURE_TYPE_UNDEAD)
+        return false;
+
     return CastCrowdControlSpellAction::isPossible();
 }
 

@@ -7,7 +7,9 @@
 #include "RandomPlayerbotMgr.h"
 #include "PlayerbotsDatabase.h"
 #include "AiFactory.h"
+#include "BattleGroundTactics.h"
 #include "Battleground.h"
+#include "BattlegroundWS.h"
 #include "BattlegroundMgr.h"
 #include "Cell.h"
 #include "CellImpl.h"
@@ -24,6 +26,7 @@
 #include "NewRpgInfo.h"
 #include "NewRpgStrategy.h"
 #include "ObjectGuid.h"
+#include "ObjectAccessor.h"
 #include "PerfMonitor.h"
 #include "Player.h"
 #include "PlayerbotAI.h"
@@ -44,9 +47,15 @@
 #include <algorithm>
 #include <boost/thread/thread.hpp>
 #include <cstdlib>
+#include <chrono>
 #include <ctime>
+#include <fcntl.h>
+#include <filesystem>
+#include <fstream>
 #include <iomanip>
 #include <random>
+#include <shared_mutex>
+#include <unistd.h>
 #include <set>
 #include <utility>
 
@@ -171,6 +180,338 @@ double botPIDImpl::calculate(double setpoint, double pv)
 botPIDImpl::~botPIDImpl() {}
 
 uint32 RandomPlayerbotMgr::GetMaxAllowedBotCount() { return GetEventValue(0, "bot_count"); }
+
+namespace
+{
+constexpr uint32 WSG_HUMAN_WATCHER_MATCH_LIMIT = 12;
+
+std::string const& WsgWatcherSession()
+{
+    static std::string const session = std::to_string(
+        std::chrono::system_clock::now().time_since_epoch().count()) + "-" + std::to_string(getpid());
+    return session;
+}
+
+std::string WsgWatcherTimestamp()
+{
+    time_t now = time(nullptr);
+    tm utc{};
+    gmtime_r(&now, &utc);
+    char timestamp[20];
+    strftime(timestamp, sizeof(timestamp), "%Y-%m-%dT%H:%M:%S", &utc);
+    return timestamp;
+}
+}
+
+bool RandomPlayerbotMgr::IsWatchingWsgMatch(Battleground const* bg) const
+{
+    return bg && bg->GetBgTypeID() == BATTLEGROUND_WS && wsgHumanWatcherMatches.contains(bg->GetInstanceID());
+}
+
+bool RandomPlayerbotMgr::BeginWsgHumanWatcherMatch(Battleground* bg)
+{
+    if (!sPlayerbotAIConfig.wsgHumanWatcher || !bg || bg->GetBgTypeID() != BATTLEGROUND_WS ||
+        wsgHumanWatcherCompletedMatches + wsgHumanWatcherMatches.size() >= WSG_HUMAN_WATCHER_MATCH_LIMIT)
+        return false;
+
+    return wsgHumanWatcherMatches.emplace(bg->GetInstanceID(),
+        wsgHumanWatcherCompletedMatches + wsgHumanWatcherMatches.size() + 1).second;
+}
+
+void RandomPlayerbotMgr::EndWsgHumanWatcherMatch(Battleground* bg)
+{
+    if (IsWatchingWsgMatch(bg))
+    {
+        wsgHumanWatcherMatches.erase(bg->GetInstanceID());
+        ++wsgHumanWatcherCompletedMatches;
+    }
+}
+
+void RandomPlayerbotMgr::UpdateWsgHumanWatcher(uint32 elapsed)
+{
+    if (!sPlayerbotAIConfig.wsgHumanWatcher || sPlayerbotAIConfig.wsgHumanWatcherDirectory.empty() ||
+        wsgHumanWatcherMatches.empty())
+        return;
+
+    wsgHumanWatcherElapsed += elapsed;
+    if (wsgHumanWatcherElapsed < 1000)
+        return;
+    wsgHumanWatcherElapsed = 0;
+
+    std::filesystem::path directory(sPlayerbotAIConfig.wsgHumanWatcherDirectory);
+    std::error_code error;
+    std::filesystem::create_directories(directory, error);
+    if (error)
+        return;
+
+    std::string const day = WsgWatcherTimestamp().substr(0, 10);
+    std::filesystem::path const trace = directory / ("wsg-human-v4-" + day + ".csv");
+    bool const newTrace = !std::filesystem::exists(trace, error);
+    int const descriptor = open(trace.c_str(), O_WRONLY | O_CREAT | O_APPEND, S_IRUSR | S_IWUSR);
+    if (descriptor == -1)
+        return;
+    close(descriptor);
+    std::filesystem::permissions(trace, std::filesystem::perms::owner_read | std::filesystem::perms::owner_write,
+                                 std::filesystem::perm_options::replace, error);
+    std::ofstream output(trace, std::ios::app);
+    if (!output)
+        return;
+
+    std::filesystem::path const botTrace = directory / ("wsg-bot-v3-" + day + ".csv");
+    bool const newBotTrace = !std::filesystem::exists(botTrace, error);
+    int const botDescriptor = open(botTrace.c_str(), O_WRONLY | O_CREAT | O_APPEND, S_IRUSR | S_IWUSR);
+    if (botDescriptor == -1)
+        return;
+    close(botDescriptor);
+    std::filesystem::permissions(botTrace, std::filesystem::perms::owner_read | std::filesystem::perms::owner_write,
+                                 std::filesystem::perm_options::replace, error);
+    std::ofstream botOutput(botTrace, std::ios::app);
+    if (!botOutput)
+        return;
+
+    if (newTrace)
+        output << "timestamp_utc,session_id,match_sequence,match_id,character_guid,account_id,team,phase,flag_state,alliance_score,horde_score,"
+                  "class_id,health_pct,power_pct,target_guid,target_kind,target_class_id,target_health_pct,target_power_pct,"
+                  "target_distance,target_angle,target_los,allies_10,enemies_10,allies_20,enemies_20,allies_40,enemies_40,"
+                  "grouped,carrier_guid,carrier_distance,x,y,z,moving,combat,alive,orientation,mounted,casting,channeling,movement_controlled\n";
+    if (newBotTrace)
+        botOutput << "timestamp_utc,session_id,match_sequence,match_id,bot_guid,class_id,spec_id,role,target_guid,target_kind,target_class_id,"
+                     "target_distance,health_pct,power_pct,moving,combat,carrier_guid,carrier_distance,allies_40,enemies_40,"
+                     "x,y,z,orientation,mounted,casting,channeling,movement_controlled,alive,target_los,team,combat_role\n";
+
+    std::shared_lock<std::shared_mutex> lock(*HashMapHolder<Player>::GetLock());
+    for (auto const& entry : ObjectAccessor::GetPlayers())
+    {
+        Player* player = entry.second;
+        if (!player || !player->IsInWorld())
+            continue;
+        Battleground* bg = player->GetBattleground();
+        if (!IsWatchingWsgMatch(bg) || bg->GetStatus() != STATUS_IN_PROGRESS)
+            continue;
+
+        auto const* ws = static_cast<BattlegroundWS const*>(bg);
+        bool const carrier = player->HasAura(BG_WS_SPELL_WARSONG_FLAG) || player->HasAura(BG_WS_SPELL_SILVERWING_FLAG);
+        char const* phase = carrier ? "return" : player->IsInCombat() ? "contest" : "opening";
+        Unit* target = ObjectAccessor::GetUnit(*player, player->GetTarget());
+        Player* targetPlayer = target ? target->ToPlayer() : nullptr;
+        char const* targetKind = !target ? "none" : !targetPlayer ? "unit" : GET_PLAYERBOT_AI(targetPlayer) ? "bot" : "human";
+        uint32 allies10 = 0, enemies10 = 0, allies20 = 0, enemies20 = 0, allies40 = 0, enemies40 = 0;
+        for (auto const& nearby : bg->GetBgMap()->GetPlayers())
+        {
+            Player* other = nearby.GetSource();
+            if (!other || other == player || !other->IsInWorld() || !other->IsAlive() ||
+                !player->CanSeeOrDetect(other) || !player->IsWithinLOSInMap(other))
+                continue;
+            float const distance = player->GetDistance(other);
+            bool const ally = other->GetTeamId() == player->GetTeamId();
+            if (distance <= 10.0f)
+                ally ? ++allies10 : ++enemies10;
+            if (distance <= 20.0f)
+                ally ? ++allies20 : ++enemies20;
+            if (distance <= 40.0f)
+                ally ? ++allies40 : ++enemies40;
+        }
+        ObjectGuid const allianceCarrier = ws->GetFlagPickerGUID(TEAM_ALLIANCE);
+        ObjectGuid const hordeCarrier = ws->GetFlagPickerGUID(TEAM_HORDE);
+        Player* closestCarrier = nullptr;
+        for (ObjectGuid carrierGuid : {allianceCarrier, hordeCarrier})
+            if (Player* carrierPlayer = ObjectAccessor::GetPlayer(*player, carrierGuid);
+                carrierPlayer && (!closestCarrier || player->GetDistance(carrierPlayer) < player->GetDistance(closestCarrier)))
+                closestCarrier = carrierPlayer;
+        if (PlayerbotAI* botAI = GET_PLAYERBOT_AI(player))
+        {
+            auto const nearby = BGTactics::GetWsgNearbyPlayers(player);
+            botOutput << WsgWatcherTimestamp() << "Z," << WsgWatcherSession() << ','
+                      << wsgHumanWatcherMatches.at(bg->GetInstanceID()) << ',' << bg->GetInstanceID() << ','
+                      << player->GetGUID().GetCounter() << ',' << uint32(player->getClass()) << ','
+                      << uint32(player->GetMostPointsTalentTree()) << ','
+                      << botAI->GetAiObjectContext()->GetValue<uint32>("bg role")->Get() << ','
+                      << player->GetTarget().GetCounter() << ',' << targetKind << ','
+                      << (targetPlayer ? uint32(targetPlayer->getClass()) : 0) << ','
+                      << (target ? player->GetDistance(target) : 0.0f) << ',' << player->GetHealthPct() << ','
+                      << player->GetPowerPct(player->getPowerType()) << ',' << player->isMoving() << ','
+                      << player->IsInCombat() << ',' << (closestCarrier ? closestCarrier->GetGUID().GetCounter() : 0) << ','
+                      << (closestCarrier ? player->GetDistance(closestCarrier) : 0.0f) << ',' << nearby.allyCount - 1 << ','
+                      << nearby.enemyCount << ',' << player->GetPositionX() << ',' << player->GetPositionY() << ','
+                      << player->GetPositionZ() << ',' << player->GetOrientation() << ',' << player->IsMounted() << ','
+                      << player->IsNonMeleeSpellCast(false, true, true) << ',' << (player->GetCurrentSpell(CURRENT_CHANNELED_SPELL) != nullptr) << ','
+                      << (player->IsRooted() || player->HasUnitState(UNIT_STATE_LOST_CONTROL)) << ',' << player->IsAlive() << ','
+                      << (target && player->IsWithinLOSInMap(target)) << ','
+                      << (player->GetTeamId() == TEAM_ALLIANCE ? "alliance" : "horde") << ','
+                      << (carrier ? "carrier" : botAI->IsHeal(player) ? "healer" : botAI->IsMelee(player) ? "melee" : "ranged") << '\n';
+            continue;
+        }
+        output << WsgWatcherTimestamp() << "Z," << WsgWatcherSession() << ','
+               << wsgHumanWatcherMatches.at(bg->GetInstanceID()) << ',' << bg->GetInstanceID() << ','
+               << player->GetGUID().GetCounter() << ',' << player->GetSession()->GetAccountId() << ','
+               << (player->GetTeamId() == TEAM_ALLIANCE ? "alliance" : "horde") << ',' << phase << ','
+               << uint32(ws->GetFlagState(TEAM_ALLIANCE)) << '-' << uint32(ws->GetFlagState(TEAM_HORDE)) << ','
+               << uint32(bg->GetTeamScore(TEAM_ALLIANCE)) << ',' << uint32(bg->GetTeamScore(TEAM_HORDE)) << ','
+               << uint32(player->getClass()) << ',' << player->GetHealthPct() << ',' << player->GetPowerPct(player->getPowerType()) << ','
+               << player->GetTarget().GetCounter() << ',' << targetKind << ',' << (targetPlayer ? uint32(targetPlayer->getClass()) : 0) << ','
+               << (target ? target->GetHealthPct() : 0.0f) << ',' << (target ? target->GetPowerPct(target->getPowerType()) : 0.0f) << ','
+               << (target ? player->GetDistance(target) : 0.0f) << ',' << (target ? player->GetAngle(target) : 0.0f) << ','
+               << (target && player->IsWithinLOSInMap(target)) << ',' << allies10 << ',' << enemies10 << ','
+               << allies20 << ',' << enemies20 << ',' << allies40 << ',' << enemies40 << ',' << (player->GetGroup() != nullptr) << ','
+               << (closestCarrier ? closestCarrier->GetGUID().GetCounter() : 0) << ','
+               << (closestCarrier ? player->GetDistance(closestCarrier) : 0.0f) << ','
+               << player->GetPositionX() << ',' << player->GetPositionY() << ',' << player->GetPositionZ() << ','
+               << player->isMoving() << ',' << player->IsInCombat() << ',' << player->IsAlive() << ','
+               << player->GetOrientation() << ',' << player->IsMounted() << ',' << player->IsNonMeleeSpellCast(false, true, true) << ','
+               << (player->GetCurrentSpell(CURRENT_CHANNELED_SPELL) != nullptr) << ','
+               << (player->IsRooted() || player->HasUnitState(UNIT_STATE_LOST_CONTROL)) << '\n';
+    }
+}
+
+void RandomPlayerbotMgr::RecordWsgHumanEvent(Player* player, char const* event, uint32 spellId, ObjectGuid targetGuid, uint32 amount)
+{
+    if (sPlayerbotAIConfig.wsgHumanWatcherDirectory.empty() || !player || !player->IsInWorld() || GET_PLAYERBOT_AI(player))
+        return;
+
+    Battleground* bg = player->GetBattleground();
+    if (!IsWatchingWsgMatch(bg))
+        return;
+
+    std::filesystem::path directory(sPlayerbotAIConfig.wsgHumanWatcherDirectory);
+    std::error_code error;
+    std::filesystem::create_directories(directory, error);
+    if (error)
+        return;
+
+    std::string const day = WsgWatcherTimestamp().substr(0, 10);
+    std::filesystem::path const trace = directory / ("wsg-events-v4-" + day + ".csv");
+    bool const newTrace = !std::filesystem::exists(trace, error);
+    int const descriptor = open(trace.c_str(), O_WRONLY | O_CREAT | O_APPEND, S_IRUSR | S_IWUSR);
+    if (descriptor == -1)
+        return;
+    close(descriptor);
+    std::filesystem::permissions(trace, std::filesystem::perms::owner_read | std::filesystem::perms::owner_write,
+                                 std::filesystem::perm_options::replace, error);
+    std::ofstream output(trace, std::ios::app);
+    if (!output)
+        return;
+
+    if (newTrace)
+        output << "timestamp_utc,session_id,match_sequence,match_id,character_guid,account_id,team,class_id,event,spell_id,amount,target_guid,target_kind,"
+                  "target_class_id,target_health_pct,target_power_pct,target_distance,target_angle,target_los,x,y,z,moving,combat,alive\n";
+
+    Unit* target = ObjectAccessor::GetUnit(*player, targetGuid);
+    Player* targetPlayer = target ? target->ToPlayer() : nullptr;
+    char const* targetKind = !target ? "none" : !targetPlayer ? "unit" : GET_PLAYERBOT_AI(targetPlayer) ? "bot" : "human";
+    output << WsgWatcherTimestamp() << "Z," << WsgWatcherSession() << ','
+           << wsgHumanWatcherMatches.at(bg->GetInstanceID()) << ',' << bg->GetInstanceID() << ','
+           << player->GetGUID().GetCounter() << ',' << player->GetSession()->GetAccountId() << ','
+           << (player->GetTeamId() == TEAM_ALLIANCE ? "alliance" : "horde") << ',' << uint32(player->getClass()) << ','
+           << event << ',' << spellId << ',' << amount << ',' << targetGuid.GetCounter() << ',' << targetKind << ','
+           << (targetPlayer ? uint32(targetPlayer->getClass()) : 0) << ',' << (target ? target->GetHealthPct() : 0.0f) << ','
+           << (target ? target->GetPowerPct(target->getPowerType()) : 0.0f) << ',' << (target ? player->GetDistance(target) : 0.0f) << ','
+           << (target ? player->GetAngle(target) : 0.0f) << ',' << (target && player->IsWithinLOSInMap(target)) << ','
+           << player->GetPositionX() << ',' << player->GetPositionY() << ','
+           << player->GetPositionZ() << ',' << player->isMoving() << ',' << player->IsInCombat() << ','
+           << player->IsAlive() << '\n';
+}
+
+void RandomPlayerbotMgr::RecordWsgHumanSpell(Player* player, uint32 spellId, ObjectGuid targetGuid)
+{
+    RecordWsgHumanEvent(player, "spell_cast", spellId, targetGuid);
+}
+
+void RandomPlayerbotMgr::RecordWsgBotSpell(Player* player, uint32 spellId, ObjectGuid targetGuid)
+{
+    if (sPlayerbotAIConfig.wsgHumanWatcherDirectory.empty() || !player || !player->IsInWorld() || !GET_PLAYERBOT_AI(player))
+        return;
+
+    Battleground* bg = player->GetBattleground();
+    if (!IsWatchingWsgMatch(bg) || bg->GetStatus() != STATUS_IN_PROGRESS)
+        return;
+
+    std::filesystem::path directory(sPlayerbotAIConfig.wsgHumanWatcherDirectory);
+    std::error_code error;
+    std::filesystem::create_directories(directory, error);
+    if (error)
+        return;
+
+    std::string const day = WsgWatcherTimestamp().substr(0, 10);
+    std::filesystem::path const trace = directory / ("wsg-bot-spells-v2-" + day + ".csv");
+    bool const newTrace = !std::filesystem::exists(trace, error);
+    int const descriptor = open(trace.c_str(), O_WRONLY | O_CREAT | O_APPEND, S_IRUSR | S_IWUSR);
+    if (descriptor == -1)
+        return;
+    close(descriptor);
+    std::filesystem::permissions(trace, std::filesystem::perms::owner_read | std::filesystem::perms::owner_write,
+                                 std::filesystem::perm_options::replace, error);
+    std::ofstream output(trace, std::ios::app);
+    if (!output)
+        return;
+
+    if (newTrace)
+        output << "timestamp_utc,session_id,match_sequence,match_id,bot_guid,class_id,spell_id,target_guid,target_kind,target_class_id,target_distance,combat\n";
+
+    Unit* target = ObjectAccessor::GetUnit(*player, targetGuid);
+    Player* targetPlayer = target ? target->ToPlayer() : nullptr;
+    char const* targetKind = !target ? "none" : !targetPlayer ? "unit" : GET_PLAYERBOT_AI(targetPlayer) ? "bot" : "human";
+    output << WsgWatcherTimestamp() << "Z," << WsgWatcherSession() << ','
+           << wsgHumanWatcherMatches.at(bg->GetInstanceID()) << ',' << bg->GetInstanceID() << ','
+           << player->GetGUID().GetCounter() << ',' << uint32(player->getClass()) << ',' << spellId << ','
+           << targetGuid.GetCounter() << ',' << targetKind << ',' << (targetPlayer ? uint32(targetPlayer->getClass()) : 0) << ','
+           << (target ? player->GetDistance(target) : 0.0f) << ',' << player->IsInCombat() << '\n';
+}
+
+void RandomPlayerbotMgr::RecordWsgBotEvent(Player* player, char const* event, char const* reason)
+{
+    if (sPlayerbotAIConfig.wsgHumanWatcherDirectory.empty() || !player || !player->IsInWorld() || !GET_PLAYERBOT_AI(player))
+        return;
+
+    Battleground* bg = player->GetBattleground();
+    if (!IsWatchingWsgMatch(bg) || bg->GetStatus() != STATUS_IN_PROGRESS)
+        return;
+
+    std::filesystem::path directory(sPlayerbotAIConfig.wsgHumanWatcherDirectory);
+    std::error_code error;
+    std::filesystem::create_directories(directory, error);
+    if (error)
+        return;
+
+    std::string const day = WsgWatcherTimestamp().substr(0, 10);
+    std::filesystem::path const trace = directory / ("wsg-bot-events-v2-" + day + ".csv");
+    bool const newTrace = !std::filesystem::exists(trace, error);
+    int const descriptor = open(trace.c_str(), O_WRONLY | O_CREAT | O_APPEND, S_IRUSR | S_IWUSR);
+    if (descriptor == -1)
+        return;
+    close(descriptor);
+    std::filesystem::permissions(trace, std::filesystem::perms::owner_read | std::filesystem::perms::owner_write,
+                                 std::filesystem::perm_options::replace, error);
+    std::ofstream output(trace, std::ios::app);
+    if (!output)
+        return;
+
+    if (newTrace)
+        output << "timestamp_utc,session_id,match_sequence,match_id,bot_guid,class_id,event,reason,"
+                  "x,y,z,mounted,casting,channeling,movement_controlled,allies_40,enemies_40\n";
+    auto const nearby = BGTactics::GetWsgNearbyPlayers(player);
+    output << WsgWatcherTimestamp() << "Z," << WsgWatcherSession() << ','
+           << wsgHumanWatcherMatches.at(bg->GetInstanceID()) << ',' << bg->GetInstanceID() << ','
+           << player->GetGUID().GetCounter() << ',' << uint32(player->getClass()) << ',' << event << ',' << reason << ','
+           << player->GetPositionX() << ',' << player->GetPositionY() << ',' << player->GetPositionZ() << ','
+           << player->IsMounted() << ',' << player->IsNonMeleeSpellCast(false, true, true) << ','
+           << (player->GetCurrentSpell(CURRENT_CHANNELED_SPELL) != nullptr) << ','
+           << (player->IsRooted() || player->HasUnitState(UNIT_STATE_LOST_CONTROL)) << ','
+           << nearby.allyCount - 1 << ',' << nearby.enemyCount << '\n';
+}
+
+void RandomPlayerbotMgr::RecordWsgHumanJump(Player* player)
+{
+    RecordWsgHumanEvent(player, "jump", 0, ObjectGuid::Empty);
+}
+
+void RandomPlayerbotMgr::RecordWsgHumanMatchEvent(Battleground* bg, char const* event, TeamId winner)
+{
+    if (!bg || bg->GetBgTypeID() != BATTLEGROUND_WS)
+        return;
+
+    for (auto const& participant : bg->GetPlayers())
+        RecordWsgHumanEvent(participant.second, event, uint32(winner), ObjectGuid::Empty);
+}
 
 void RandomPlayerbotMgr::LogPlayerLocation()
 {
@@ -2674,6 +3015,10 @@ void RandomPlayerbotMgr::OnBotLoginInternal(Player* const bot)
         PlayerbotFactory factory(bot, bot->GetLevel());
         factory.InitGuild();
     }
+
+    PlayerbotFactory factory(bot, bot->GetLevel());
+    if (factory.HasMissingCoreGear())
+        factory.InitEquipment(true);
 
     RandomPlayerbotFactory::AssignBotToArenaTeam(bot);
 

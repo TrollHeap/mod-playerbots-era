@@ -2675,6 +2675,11 @@ AiPlayerbot.BroadcastChanceGuildManagement = 30000
 # Example: AiPlayerbot.AllowedLogFiles = travelNodes.csv,travelPaths.csv,TravelNodeStore.h,bot_movement.csv,bot_location.csv
 AiPlayerbot.AllowedLogFiles = ""
 
+# Private, opt-in WSG-only observation of real players. Files are owner-read/write only;
+# process them with classic60/scripts/wsg-human-report.py before any manual tactic review.
+AiPlayerbot.WsgHumanWatcher = 0
+AiPlayerbot.WsgHumanWatcherDirectory = ""
+
 #
 #
 ####################################################################################################

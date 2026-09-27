@@ -242,6 +242,8 @@ bool PlayerbotAIConfig::Initialize()
 
     botAutologin = sConfigMgr->GetOption<bool>("AiPlayerbot.BotAutologin", false);
     randomBotAutologin = sConfigMgr->GetOption<bool>("AiPlayerbot.RandomBotAutologin", true);
+    wsgHumanWatcher = sConfigMgr->GetOption<bool>("AiPlayerbot.WsgHumanWatcher", false);
+    wsgHumanWatcherDirectory = sConfigMgr->GetOption<std::string>("AiPlayerbot.WsgHumanWatcherDirectory", "");
     minRandomBots = sConfigMgr->GetOption<int32>("AiPlayerbot.MinRandomBots", 500);
     maxRandomBots = sConfigMgr->GetOption<int32>("AiPlayerbot.MaxRandomBots", 500);
     randomBotUpdateInterval = sConfigMgr->GetOption<int32>("AiPlayerbot.RandomBotUpdateInterval", 20);

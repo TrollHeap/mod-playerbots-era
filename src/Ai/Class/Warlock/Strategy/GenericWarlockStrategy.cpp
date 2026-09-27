@@ -46,6 +46,14 @@ void GenericWarlockStrategy::InitTriggers(std::vector<TriggerNode*>& triggers)
     );
     triggers.push_back(
         new TriggerNode(
+            "enemy within melee",
+            {
+                NextAction("fear", 41.0f)
+            }
+        )
+    );
+    triggers.push_back(
+        new TriggerNode(
             "no soul shard",
             {
                 NextAction("create soul shard", 60.0f)

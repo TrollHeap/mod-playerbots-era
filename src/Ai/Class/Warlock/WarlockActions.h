@@ -183,6 +183,14 @@ public:
     bool isPossible() override;
 };
 
+class CastFearAction : public CastCrowdControlSpellAction
+{
+public:
+    CastFearAction(PlayerbotAI* botAI) : CastCrowdControlSpellAction(botAI, "fear") {}
+    Value<Unit*>* GetTargetValue() override;
+    bool isPossible() override;
+};
+
 class CastSpellLockAction : public CastSpellAction
 {
 public:

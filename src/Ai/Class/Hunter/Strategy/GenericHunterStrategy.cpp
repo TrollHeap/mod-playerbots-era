@@ -77,7 +77,8 @@ void GenericHunterStrategy::InitTriggers(std::vector<TriggerNode*>& triggers)
     triggers.push_back(new TriggerNode("tranquilizing shot magic", { NextAction("tranquilizing shot", 61.0f) }));
 
     // Ranged-based Triggers
-    triggers.push_back(new TriggerNode("enemy within melee", { NextAction("explosive trap", 37.0f),
+    triggers.push_back(new TriggerNode("enemy within melee", { NextAction("freezing trap", 38.0f),
+                                                               NextAction("explosive trap", 37.0f),
                                                                NextAction("mongoose bite", 22.0f),
                                                                NextAction("wing clip", 21.0f) }));
 
@@ -98,7 +99,7 @@ void AoEHunterStrategy::InitTriggers(std::vector<TriggerNode*>& triggers)
 void HunterCcStrategy::InitTriggers(std::vector<TriggerNode*>& triggers)
 {
     triggers.push_back(new TriggerNode("scare beast", { NextAction("scare beast on cc", 23.0f) }));
-    triggers.push_back(new TriggerNode("freezing trap", { NextAction("freezing trap on cc", 23.0f) }));
+    triggers.push_back(new TriggerNode("freezing trap", { NextAction("freezing trap", 23.0f) }));
 }
 
 void HunterTrapWeaveStrategy::InitTriggers(std::vector<TriggerNode*>& triggers)
