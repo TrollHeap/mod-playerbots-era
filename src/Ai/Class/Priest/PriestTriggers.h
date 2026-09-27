@@ -19,7 +19,19 @@ DEBUFF_CHECKISOWNER_TRIGGER(ShadowWordPainTrigger, "shadow word: pain");
 DEBUFF_ENEMY_TRIGGER(ShadowWordPainOnAttackerTrigger, "shadow word: pain");
 DEBUFF_CHECKISOWNER_TRIGGER(VampiricTouchTrigger, "vampiric touch");
 DEBUFF_ENEMY_TRIGGER(VampiricTouchOnAttackerTrigger, "vampiric touch on attacker");
-BUFF_TRIGGER(VampiricEmbraceTrigger, "vampiric embrace");
+// mod-era-talents (patch 0021): see CastVampiricEmbraceAction — the era VE is an enemy
+// debuff, so the "needs VE" check must look at the current target, not the priest.
+class VampiricEmbraceTrigger : public BuffTrigger
+{
+public:
+    VampiricEmbraceTrigger(PlayerbotAI* botAI) : BuffTrigger(botAI, "vampiric embrace") {}
+    std::string const GetTargetName() override
+    {
+        extern uint32 EraTalentBots_ResolveSpellId(Player* bot, uint32 stockSpellId);
+        uint32 known = EraTalentBots_ResolveSpellId(bot, 15286);
+        return (known && known != 15286) ? "current target" : "self target";
+    }
+};
 CURE_TRIGGER(DispelMagicTrigger, "dispel magic", DISPEL_MAGIC);
 CURE_PARTY_TRIGGER(DispelMagicPartyMemberTrigger, "dispel magic", DISPEL_MAGIC);
 CURE_TRIGGER(CureDiseaseTrigger, "cure disease", DISPEL_DISEASE);

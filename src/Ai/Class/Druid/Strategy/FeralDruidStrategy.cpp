@@ -7,6 +7,12 @@
 #include "FeralDruidStrategy.h"
 #include "Playerbots.h"
 
+// mod-era-talents (patch 0021): era-transparent spell lookup — returns the id this character
+// KNOWS for a stock spell (the stock id itself, or its same-name Vanilla-era clone), else 0.
+extern uint32 EraTalentBots_ResolveSpellId(Player* bot, uint32 stockSpellId);
+static inline uint32 EraKnown(Player* bot, uint32 spellId) { return EraTalentBots_ResolveSpellId(bot, spellId); }
+
+
 class FeralDruidStrategyActionNodeFactory : public NamedObjectFactory<ActionNode>
 {
 public:
@@ -95,7 +101,7 @@ void FeralChargeDruidStrategy::InitTriggers(std::vector<TriggerNode*>& triggers)
 {
     Player* bot = botAI->GetBot();
 
-    if (bot->HasSpell(SPELL_CAT_FORM) && !bot->HasAura(AURA_THICK_HIDE))
+    if (bot->HasSpell(SPELL_CAT_FORM) && !bot->HasAura(EraKnown(bot, AURA_THICK_HIDE)))
         triggers.push_back(new TriggerNode(
             "enemy out of melee", { NextAction("feral charge - cat", 29.0f) }));
     else

@@ -2312,10 +2312,16 @@ bool PlayerbotAI::IsTank(Player* player, bool bySpec)
             }
             break;
         case CLASS_DRUID:
-            if (tab == DRUID_TAB_FERAL && (player->GetShapeshiftForm() == FORM_BEAR ||
-                                           player->GetShapeshiftForm() == FORM_DIREBEAR || player->HasAura(16931)))
+            // mod-era-talents (patch 0021): 16931 Thick Hide is the bear discriminator, but a
+            // Vanilla-era character carries a same-name clone — resolve to whichever it knows.
+            if (tab == DRUID_TAB_FERAL)
             {
-                return true;
+                extern uint32 EraTalentBots_ResolveSpellId(Player* bot, uint32 stockSpellId);
+                if (player->GetShapeshiftForm() == FORM_BEAR || player->GetShapeshiftForm() == FORM_DIREBEAR ||
+                    player->HasAura(EraTalentBots_ResolveSpellId(player, 16931)))
+                {
+                    return true;
+                }
             }
             break;
     }

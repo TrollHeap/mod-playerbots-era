@@ -15,6 +15,25 @@
 #include "Unit.h"
 #include <ctime>
 
+// mod-era-talents (patch 0021): era-transparent spell lookup — returns the id this character
+// KNOWS for a stock spell (the stock id itself, or its same-name Vanilla-era clone), else 0.
+// Drop-in for HasSpell; the returned id is also the one to cast or compare identities with
+// (a Vanilla bot's totem carries the CLONE id in UNIT_CREATED_BY_SPELL).
+extern uint32 EraTalentBots_ResolveSpellId(Player* bot, uint32 stockSpellId);
+static inline uint32 EraKnown(Player* bot, uint32 spellId) { return EraTalentBots_ResolveSpellId(bot, spellId); }
+static bool EraKnownMatchesAny(Player* bot, uint32 currentSpell, uint32 const* arr, size_t n)
+{
+    for (size_t i = 0; i < n; ++i)
+    {
+        if (currentSpell == arr[i])
+            return true;
+        uint32 eraSpell = EraKnown(bot, arr[i]);
+        if (eraSpell && currentSpell == eraSpell)
+            return true;
+    }
+    return false;
+}
+
 bool MainHandWeaponNoImbueTrigger::IsActive()
 {
     Item* const itemForSpell = bot->GetItemByPos(INVENTORY_SLOT_BAG_0, EQUIPMENT_SLOT_MAINHAND);
@@ -166,10 +185,10 @@ bool CallOfTheElementsTrigger::IsActive()
             continue;
         }
 
-        if ((slot == SUMMON_SLOT_TOTEM_EARTH && bot->HasSpell(SPELL_STONESKIN_TOTEM_RANK_1)) ||
-            (slot == SUMMON_SLOT_TOTEM_FIRE && bot->HasSpell(SPELL_SEARING_TOTEM_RANK_1)) ||
-            (slot == SUMMON_SLOT_TOTEM_WATER && bot->HasSpell(SPELL_HEALING_STREAM_TOTEM_RANK_1)) ||
-            (slot == SUMMON_SLOT_TOTEM_AIR && bot->HasSpell(SPELL_NATURE_RESISTANCE_TOTEM_RANK_1)))
+        if ((slot == SUMMON_SLOT_TOTEM_EARTH && EraKnown(bot, SPELL_STONESKIN_TOTEM_RANK_1)) ||
+            (slot == SUMMON_SLOT_TOTEM_FIRE && EraKnown(bot, SPELL_SEARING_TOTEM_RANK_1)) ||
+            (slot == SUMMON_SLOT_TOTEM_WATER && EraKnown(bot, SPELL_HEALING_STREAM_TOTEM_RANK_1)) ||
+            (slot == SUMMON_SLOT_TOTEM_AIR && EraKnown(bot, SPELL_NATURE_RESISTANCE_TOTEM_RANK_1)))
         {
             emptyCount++;
         }
@@ -231,11 +250,9 @@ bool TotemicRecallTrigger::IsActive()
             currentSpell = totem->GetUInt32Value(UNIT_CREATED_BY_SPELL);
         }
 
-        for (size_t i = 0; i < MANA_TIDE_TOTEM_COUNT; ++i)
-        {
-            if (currentSpell == MANA_TIDE_TOTEM[i] && totem && totem->GetDistance(bot) <= 30.0f)
-                return false;
-        }
+        if (totem && totem->GetDistance(bot) <= 30.0f &&
+            EraKnownMatchesAny(bot, currentSpell, MANA_TIDE_TOTEM, MANA_TIDE_TOTEM_COUNT))
+            return false;
     }
 
     guid = bot->m_SummonSlot[SUMMON_SLOT_TOTEM_FIRE];
@@ -248,11 +265,9 @@ bool TotemicRecallTrigger::IsActive()
             currentSpell = totem->GetUInt32Value(UNIT_CREATED_BY_SPELL);
         }
 
-        for (size_t i = 0; i < FIRE_ELEMENTAL_TOTEM_COUNT; ++i)
-        {
-            if (currentSpell == FIRE_ELEMENTAL_TOTEM[i] && totem && totem->GetDistance(bot) <= 30.0f)
-                return false;
-        }
+        if (totem && totem->GetDistance(bot) <= 30.0f &&
+            EraKnownMatchesAny(bot, currentSpell, FIRE_ELEMENTAL_TOTEM, FIRE_ELEMENTAL_TOTEM_COUNT))
+            return false;
     }
 
     return !bot->m_SummonSlot[SUMMON_SLOT_TOTEM_EARTH].IsEmpty() ||
@@ -273,9 +288,9 @@ static uint32 GetRequiredTotemSpellId(PlayerbotAI* botAI, char const* strategies
             // Find the highest-rank spell the bot knows
             for (size_t j = 0; j < spellCounts[i]; ++j)
             {
-                if (bot->HasSpell(spellList[i][j]))
+                if (uint32 known = EraKnown(bot, spellList[i][j]))
                 {
-                    return spellList[i][j];
+                    return known;
                 }
             }
         }
@@ -287,7 +302,7 @@ static uint32 GetRequiredTotemSpellId(PlayerbotAI* botAI, char const* strategies
 bool NoEarthTotemTrigger::IsActive()
 {
     // Check if the bot has Stoneskin Totem (required level 4) and prevents the trigger firing if it doesn't
-    if (!bot->HasSpell(SPELL_STONESKIN_TOTEM_RANK_1))
+    if (!EraKnown(bot, SPELL_STONESKIN_TOTEM_RANK_1))
         return false;
 
     ObjectGuid guid = bot->m_SummonSlot[SUMMON_SLOT_TOTEM_EARTH];
@@ -311,11 +326,9 @@ bool NoEarthTotemTrigger::IsActive()
     uint32 requiredSpell = GetRequiredTotemSpellId(botAI, names, spells, counts, 4);
 
     // EXCEPTION: If Stoneclaw Totem is out and in range, consider the slot "occupied" (do not fire the trigger)
-    for (size_t i = 0; i < STONECLAW_TOTEM_COUNT; ++i)
-    {
-        if (currentSpell == STONECLAW_TOTEM[i] && totem && totem->GetDistance(bot) <= 30.0f)
-            return false;
-    }
+    if (totem && totem->GetDistance(bot) <= 30.0f &&
+        EraKnownMatchesAny(bot, currentSpell, STONECLAW_TOTEM, STONECLAW_TOTEM_COUNT))
+        return false;
 
     // If no relevant strategy, only care if the slot is empty or totem is too far away
     if (!requiredSpell)
@@ -328,7 +341,7 @@ bool NoEarthTotemTrigger::IsActive()
 bool NoFireTotemTrigger::IsActive()
 {
     // Check if the bot has Searing Totem (required level 10) and prevents the trigger firing if it doesn't
-    if (!bot->HasSpell(SPELL_SEARING_TOTEM_RANK_1))
+    if (!EraKnown(bot, SPELL_SEARING_TOTEM_RANK_1))
         return false;
 
     ObjectGuid guid = bot->m_SummonSlot[SUMMON_SLOT_TOTEM_FIRE];
@@ -353,11 +366,9 @@ bool NoFireTotemTrigger::IsActive()
     uint32 requiredSpell = GetRequiredTotemSpellId(botAI, names, spells, counts, 5);
 
     // EXCEPTION: If Fire Elemental is out and in range, consider the slot "occupied" (do not fire the trigger)
-    for (size_t i = 0; i < FIRE_ELEMENTAL_TOTEM_COUNT; ++i)
-    {
-        if (currentSpell == FIRE_ELEMENTAL_TOTEM[i] && totem && totem->GetDistance(bot) <= 30.0f)
-            return false;
-    }
+    if (totem && totem->GetDistance(bot) <= 30.0f &&
+        EraKnownMatchesAny(bot, currentSpell, FIRE_ELEMENTAL_TOTEM, FIRE_ELEMENTAL_TOTEM_COUNT))
+        return false;
 
     // If no relevant strategy, only care if the slot is empty or totem is too far away
     if (!requiredSpell)
@@ -370,7 +381,7 @@ bool NoFireTotemTrigger::IsActive()
 bool NoWaterTotemTrigger::IsActive()
 {
     // Check if the bot has Healing Stream Totem (required level 20) and prevents the trigger firing if it doesn't
-    if (!bot->HasSpell(SPELL_HEALING_STREAM_TOTEM_RANK_1))
+    if (!EraKnown(bot, SPELL_HEALING_STREAM_TOTEM_RANK_1))
         return false;
 
     ObjectGuid guid = bot->m_SummonSlot[SUMMON_SLOT_TOTEM_WATER];
@@ -394,11 +405,9 @@ bool NoWaterTotemTrigger::IsActive()
     uint32 requiredSpell = GetRequiredTotemSpellId(botAI, names, spells, counts, 4);
 
     // EXCEPTION: If Mana Tide is out and in range, consider the slot "occupied" (do not fire the trigger)
-    for (size_t i = 0; i < MANA_TIDE_TOTEM_COUNT; ++i)
-    {
-        if (currentSpell == MANA_TIDE_TOTEM[i] && totem && totem->GetDistance(bot) <= 30.0f)
-            return false;
-    }
+    if (totem && totem->GetDistance(bot) <= 30.0f &&
+        EraKnownMatchesAny(bot, currentSpell, MANA_TIDE_TOTEM, MANA_TIDE_TOTEM_COUNT))
+        return false;
 
     // If no relevant strategy, only care if the slot is empty or totem is too far away
     if (!requiredSpell)
@@ -413,7 +422,7 @@ bool NoWaterTotemTrigger::IsActive()
 bool NoAirTotemTrigger::IsActive()
 {
     // Check if the bot has Nature Resistance Totem (required level 30) and prevents the trigger firing if it doesn't
-    if (!bot->HasSpell(SPELL_NATURE_RESISTANCE_TOTEM_RANK_1))
+    if (!EraKnown(bot, SPELL_NATURE_RESISTANCE_TOTEM_RANK_1))
         return false;
 
     ObjectGuid guid = bot->m_SummonSlot[SUMMON_SLOT_TOTEM_AIR];
@@ -451,10 +460,9 @@ bool SetTotemTrigger::IsActive()
    uint32 highestKnownSpell = 0;
    for (size_t i = 0; i < totemSpellIdsCount; ++i)
    {
-       const uint32 spellId = totemSpellIds[i];
-       if (bot->HasSpell(spellId))
+       if (uint32 known = EraKnown(bot, totemSpellIds[i]))
        {
-           highestKnownSpell = spellId;
+           highestKnownSpell = known;
            break;
        }
    }

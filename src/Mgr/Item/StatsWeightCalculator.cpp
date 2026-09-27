@@ -20,6 +20,11 @@
 #include "Unit.h"
 #include <memory>
 
+// mod-era-talents (patch 0021): era-transparent spell lookup — returns the id this character
+// KNOWS for a stock spell (the stock id itself, or its same-name era clone), else 0.
+extern uint32 EraTalentBots_ResolveSpellId(Player* bot, uint32 stockSpellId);
+static inline uint32 EraKnown(Player* bot, uint32 spellId) { return EraTalentBots_ResolveSpellId(bot, spellId); }
+
 namespace
 {
 constexpr uint32 SPELL_MOLTEN_ARMOR_RANKS[] = { 30482, 43045, 43046 };
@@ -688,12 +693,19 @@ void StatsWeightCalculator::CalculateItemTypePenalty(ItemTemplate const* proto)
             weight_ *= 1.5;
         }
 
-        if (cls == CLASS_ROGUE && player_->HasAura(SPELL_ROGUE_SWORD_SPECIALIZATION) &&
+        // Sword Specialization: stock rank-5 id ("Hack and Slash" since WotLK), or the era clone
+        // this rogue actually knows — era rogues hold it as generated auto-passives (Vanilla
+        // 923440-444 / TBC 939480-484), never the stock chain, so the check was permanently
+        // false for them. Resolving the rank-5 id only (like the Poleaxe line below) keeps the
+        // upstream semantics exactly: the bonus needs a MAXED node in every era.
+        if (cls == CLASS_ROGUE && player_->HasAura(EraKnown(player_, SPELL_ROGUE_SWORD_SPECIALIZATION)) &&
             (proto->SubClass == ITEM_SUBCLASS_WEAPON_SWORD || proto->SubClass == ITEM_SUBCLASS_WEAPON_AXE))
         {
             weight_ *= 1.1;
         }
-        if (cls == CLASS_WARRIOR && player_->HasAura(SPELL_POLEAXE_SPECIALIZATION) &&
+        // Poleaxe Specialization: stock rank-5 id, or the era clone this warrior actually knows
+        // (the class test short-circuits first, so only warriors pay the resolve).
+        if (cls == CLASS_WARRIOR && player_->HasAura(EraKnown(player_, SPELL_POLEAXE_SPECIALIZATION)) &&
             (proto->SubClass == ITEM_SUBCLASS_WEAPON_POLEARM || proto->SubClass == ITEM_SUBCLASS_WEAPON_AXE2))
         {
             weight_ *= 1.1;

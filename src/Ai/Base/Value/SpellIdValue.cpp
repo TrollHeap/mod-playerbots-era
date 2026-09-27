@@ -42,6 +42,14 @@ uint32 SpellIdValue::Calculate()
         if (itr->second->State == PLAYERSPELL_REMOVED || !itr->second->Active)
             continue;
 
+        // mod-era-talents (patch 0021): skip spells not in the ACTIVE spec. An orphaned
+        // specMask=0 character_spell row (a WotLK-talent ghost left from a bot's
+        // pre-era-rebuild life) is loaded into the spell map but HasSpell()-unknown; without
+        // this check it shadows a same-name era clone and resolves to an uncastable id
+        // (live: ghost 15286 beat era Vampiric Embrace 921152 -> every cast refused).
+        if (!itr->second->IsInSpec(bot->GetActiveSpec()))
+            continue;
+
         SpellInfo const* spellInfo = sSpellMgr->GetSpellInfo(spellId);
         if (!spellInfo || spellInfo->IsPassive())
             continue;

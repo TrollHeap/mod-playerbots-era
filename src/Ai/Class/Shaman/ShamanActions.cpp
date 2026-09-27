@@ -10,6 +10,10 @@
 #include "Playerbots.h"
 #include "TotemsShamanStrategy.h"
 
+// mod-era-talents (patch 0021): era-transparent spell lookup — see ShamanTriggers.cpp.
+extern uint32 EraTalentBots_ResolveSpellId(Player* bot, uint32 stockSpellId);
+static inline uint32 EraKnown(Player* bot, uint32 spellId) { return EraTalentBots_ResolveSpellId(bot, spellId); }
+
 bool CastTotemAction::isUseful()
 {
     return CastBuffSpellAction::isUseful()
@@ -98,9 +102,9 @@ bool SetTotemAction::Execute(Event /*event*/)
     uint32 totemSpell = 0;
     for (size_t i = 0; i < totemSpellIdsCount; ++i)
     {
-        if (bot->HasSpell(totemSpellIds[i]))
+        if (uint32 known = EraKnown(bot, totemSpellIds[i]))
         {
-            totemSpell = totemSpellIds[i];
+            totemSpell = known;
             break;
         }
     }

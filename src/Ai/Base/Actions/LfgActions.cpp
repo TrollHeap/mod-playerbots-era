@@ -14,6 +14,12 @@
 #include "World.h"
 #include "WorldPacket.h"
 
+// mod-era-talents (patch 0021): era-transparent spell lookup — returns the id this character
+// KNOWS for a stock spell (the stock id itself, or its same-name Vanilla-era clone), else 0.
+extern uint32 EraTalentBots_ResolveSpellId(Player* bot, uint32 stockSpellId);
+static inline uint32 EraKnown(Player* bot, uint32 spellId) { return EraTalentBots_ResolveSpellId(bot, spellId); }
+
+
 using namespace lfg;
 
 bool LfgJoinAction::Execute(Event /*event*/) { return JoinLFG(); }
@@ -36,7 +42,7 @@ uint32 LfgJoinAction::GetRoles()
         case CLASS_DRUID:
             if (spec == 2)
                 return PLAYER_ROLE_HEALER;
-            else if (spec == 1 && bot->HasAura(16931) /* thick hide */)
+            else if (spec == 1 && bot->HasAura(EraKnown(bot, 16931)) /* thick hide (stock or era clone) */)
                 return PLAYER_ROLE_TANK;
             else
                 return PLAYER_ROLE_DAMAGE;

@@ -5,6 +5,11 @@
  */
 
 #include "WorldBuffAction.h"
+
+// mod-era-talents (patch 0021): era-transparent spell lookup — returns the id this character
+// KNOWS for a stock spell (the stock id itself, or its same-name Vanilla-era clone), else 0.
+extern uint32 EraTalentBots_ResolveSpellId(Player* bot, uint32 stockSpellId);
+static inline uint32 EraKnown(Player* bot, uint32 spellId) { return EraTalentBots_ResolveSpellId(bot, spellId); }
 #include "AiFactory.h"
 #include "Event.h"
 #include "Playerbots.h"
@@ -50,7 +55,8 @@ std::vector<uint32> WorldBuffAction::NeedWorldBuffs(Unit* unit)
     // If this is a druid in the Feral tab, decide Bear vs. Cat
     if (botClass == CLASS_DRUID && tab == 1)  // 1 = feral
     {
-        bool isBear = bot->HasTalent(16931, bot->GetActiveSpec()); // Thick Hide rank 3
+        bool isBear = bot->HasTalent(16931, bot->GetActiveSpec()) ||
+                      bot->HasAura(EraKnown(bot, 16931)); // Thick Hide rank 3 (stock talent or era clone)
         if (!isBear)
         {
             // If not bear, then treat it as "cat" spec = 3

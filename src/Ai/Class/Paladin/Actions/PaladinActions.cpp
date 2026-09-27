@@ -13,6 +13,11 @@
 #include "Playerbots.h"
 #include "SharedDefines.h"
 
+// mod-era-talents (patch 0021): era-transparent spell lookup — returns the id this character
+// KNOWS for a stock spell (the stock id itself, or its same-name Vanilla-era clone), else 0.
+extern uint32 EraTalentBots_ResolveSpellId(Player* bot, uint32 stockSpellId);
+static inline uint32 EraKnown(Player* bot, uint32 spellId) { return EraTalentBots_ResolveSpellId(bot, spellId); }
+
 static bool IsBlessingTargetCandidate(Player* bot, Player* player)
 {
     if (!player || !player->IsAlive() || player->GetMapId() != bot->GetMapId())
@@ -197,7 +202,7 @@ inline std::string const GetActualBlessingOfWisdom(Unit* target)
 
 inline std::string const GetActualBlessingOfSanctuary(Unit* target, Player* bot)
 {
-    if (!bot->HasSpell(ai::paladin::SPELL_BLESSING_OF_SANCTUARY))
+    if (!EraKnown(bot, ai::paladin::SPELL_BLESSING_OF_SANCTUARY))
         return "";
 
     Player* targetPlayer = target->ToPlayer();
@@ -342,7 +347,7 @@ bool CastBlessingOfSanctuaryOnPartyAction::Execute(Event /*event*/)
     if (IsGreaterBlessingMode(bot))
         return false;
 
-    if (!bot->HasSpell(ai::paladin::SPELL_BLESSING_OF_SANCTUARY))
+    if (!EraKnown(bot, ai::paladin::SPELL_BLESSING_OF_SANCTUARY))
         return false;
 
     Unit* target = GetTarget();
@@ -428,7 +433,7 @@ Unit* CastBlessingOfSanctuaryOnPartyAction::GetTarget()
     if (IsGreaterBlessingMode(bot))
         return nullptr;
 
-    if (!bot->HasSpell(ai::paladin::SPELL_BLESSING_OF_SANCTUARY))
+    if (!EraKnown(bot, ai::paladin::SPELL_BLESSING_OF_SANCTUARY))
         return nullptr;
 
     return FindBlessingTarget(bot, botAI, [&](Player* player)
@@ -518,7 +523,8 @@ bool CastBlessingOfKingsOnPartyAction::Execute(Event /*event*/)
         const bool isTank = IsTankRole(targetPlayer);
         const bool hasSanctFromMe =
             target->HasAura(ai::paladin::SPELL_BLESSING_OF_SANCTUARY, bot->GetGUID()) ||
-            target->HasAura(ai::paladin::SPELL_GREATER_BLESSING_OF_SANCTUARY, bot->GetGUID());
+            target->HasAura(ai::paladin::SPELL_GREATER_BLESSING_OF_SANCTUARY, bot->GetGUID()) ||
+            target->HasAura(EraKnown(bot, ai::paladin::SPELL_BLESSING_OF_SANCTUARY), bot->GetGUID());
         const bool hasSanctAny =
             botAI->HasAura("blessing of sanctuary", target) ||
             botAI->HasAura("greater blessing of sanctuary", target);

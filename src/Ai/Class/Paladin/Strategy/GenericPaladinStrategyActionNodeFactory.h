@@ -28,6 +28,7 @@ public:
         creators["seal of justice"] = &seal_of_justice;
         creators["hand of reckoning"] = &hand_of_reckoning;
         creators["judgement of wisdom"] = &judgement_of_wisdom;
+        creators["judgement of light"] = &judgement_of_light;
         creators["divine shield"] = &divine_shield;
         creators["flash of light"] = &flash_of_light;
         creators["flash of light on party"] = &flash_of_light_on_party;
@@ -142,6 +143,16 @@ private:
         return new ActionNode("judgement of wisdom",
                               /*P*/ {},
                               /*A*/ { NextAction("judgement of light") },
+                              /*C*/ {});
+    }
+    // mod-era-talents (patch 0021): a Vanilla-era paladin has neither "judgement of wisdom"
+    // nor "judgement of light" — only the single era "Judgement" (which consumes the active
+    // seal). Terminate the alt chain there so era paladins still judge.
+    static ActionNode* judgement_of_light(PlayerbotAI* /* ai */)
+    {
+        return new ActionNode("judgement of light",
+                              /*P*/ {},
+                              /*A*/ { NextAction("judgement") },
                               /*C*/ {});
     }
     static ActionNode* divine_shield(PlayerbotAI* /* ai */)

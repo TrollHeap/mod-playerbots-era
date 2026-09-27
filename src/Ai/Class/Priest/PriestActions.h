@@ -140,7 +140,19 @@ public:
 
 // shadow talents
 SPELL_ACTION(CastMindFlayAction, "mind flay");
-BUFF_ACTION(CastVampiricEmbraceAction, "vampiric embrace");
+// mod-era-talents (patch 0021): the Vanilla-era Vampiric Embrace (same-name clone 921152)
+// is an ENEMY debuff; stock WotLK 15286 is a self-buff. Target whichever this priest knows.
+class CastVampiricEmbraceAction : public CastBuffSpellAction
+{
+public:
+    CastVampiricEmbraceAction(PlayerbotAI* botAI) : CastBuffSpellAction(botAI, "vampiric embrace") {}
+    std::string const GetTargetName() override
+    {
+        extern uint32 EraTalentBots_ResolveSpellId(Player* bot, uint32 stockSpellId);
+        uint32 known = EraTalentBots_ResolveSpellId(bot, 15286);
+        return (known && known != 15286) ? "current target" : "self target";
+    }
+};
 BUFF_ACTION(CastShadowformAction, "shadowform");
 SPELL_ACTION(CastSilenceAction, "silence");
 ENEMY_HEALER_ACTION(CastSilenceOnEnemyHealerAction, "silence");

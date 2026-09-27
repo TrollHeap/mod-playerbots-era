@@ -7,6 +7,11 @@
 #include "WarriorTriggers.h"
 #include "Playerbots.h"
 
+// mod-era-talents (patch 0021): era-transparent spell lookup — returns the id this character
+// KNOWS for a stock spell (the stock id itself, or its same-name era clone), else 0.
+extern uint32 EraTalentBots_ResolveSpellId(Player* bot, uint32 stockSpellId);
+static inline uint32 EraKnown(Player* bot, uint32 spellId) { return EraTalentBots_ResolveSpellId(bot, spellId); }
+
 namespace
 {
 constexpr uint32 SPELL_VIGILANCE = 50720;
@@ -103,7 +108,9 @@ bool BattleShoutTrigger::IsActive()
     float cpBonus = 0.0f;
     for (int rank = 4; rank >= 0; --rank)
     {
-        if (bot->HasAura(SPELL_COMMANDING_PRESENCE_RANKS[rank]))
+        // Resolve each RANK id separately (stock or era clone): the bridge's rank compare means
+        // "this rank or better", so walking high->low still lands on the bot's actual rank.
+        if (bot->HasAura(EraKnown(bot, SPELL_COMMANDING_PRESENCE_RANKS[rank])))
         {
             cpBonus = commandingPresenceBonus[rank];
             break;

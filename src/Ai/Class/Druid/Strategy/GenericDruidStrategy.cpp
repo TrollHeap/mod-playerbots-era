@@ -9,6 +9,12 @@
 #include "FeralDruidStrategy.h"
 #include "Playerbots.h"
 
+// mod-era-talents (patch 0021): era-transparent spell lookup — returns the id this character
+// KNOWS for a stock spell (the stock id itself, or its same-name Vanilla-era clone), else 0.
+extern uint32 EraTalentBots_ResolveSpellId(Player* bot, uint32 stockSpellId);
+static inline uint32 EraKnown(Player* bot, uint32 spellId) { return EraTalentBots_ResolveSpellId(bot, spellId); }
+
+
 class GenericDruidStrategyActionNodeFactory : public NamedObjectFactory<ActionNode>
 {
 public:
@@ -62,7 +68,7 @@ void GenericDruidStrategy::InitTriggers(std::vector<TriggerNode*>& triggers)
 
     if (tab == DRUID_TAB_FERAL)
     {
-        if (!bot->HasAura(16931) /*thick hide — bear spec*/)
+        if (!bot->HasAura(EraKnown(bot, 16931)) /*thick hide (stock or era clone) — bear spec*/)
         {
             triggers.push_back(new TriggerNode("predator's swiftness and combat party member dead",
                                                { NextAction("rebirth", 29.0f) }));
@@ -125,7 +131,7 @@ void DruidCcStrategy::InitTriggers(std::vector<TriggerNode*>& triggers)
     }
     if (tab == DRUID_TAB_FERAL)
     {
-        if (bot->HasSpell(SPELL_CAT_FORM) && !bot->HasAura(AURA_THICK_HIDE))
+        if (bot->HasSpell(SPELL_CAT_FORM) && !bot->HasAura(EraKnown(bot, AURA_THICK_HIDE)))
         {
             triggers.push_back(new TriggerNode(
                 "predator's swiftness and cyclone", { NextAction("cyclone on cc", 42.0f) }));
@@ -181,7 +187,7 @@ void DruidAoeStrategy::InitTriggers(std::vector<TriggerNode*>& triggers)
         triggers.push_back(new TriggerNode("moonfire on attacker", { NextAction("moonfire on attacker", 5.1f) }));
     }
 
-    if (tab == DRUID_TAB_FERAL && bot->HasSpell(SPELL_CAT_FORM) && !bot->HasAura(AURA_THICK_HIDE))
+    if (tab == DRUID_TAB_FERAL && bot->HasSpell(SPELL_CAT_FORM) && !bot->HasAura(EraKnown(bot, AURA_THICK_HIDE)))
     {
         triggers.push_back(new TriggerNode("clearcasting and medium aoe", { NextAction("swipe (cat)", 25.5f) }));
         triggers.push_back(new TriggerNode("medium aoe", { NextAction("swipe (cat)", 25.0f) }));

@@ -35,6 +35,17 @@ void ShadowPriestStrategy::InitTriggers(std::vector<TriggerNode*>& triggers)
             }
         )
     );
+    // mod-era-talents (patch 0021): the Vanilla-era Vampiric Embrace is an enemy debuff cast
+    // IN combat (the trigger self-gates: it needs a current target, so for a WotLK priest —
+    // whose VE is the self-buff handled by the noncombat node — this node is harmless).
+    triggers.push_back(
+        new TriggerNode(
+            "vampiric embrace",
+            {
+                NextAction("vampiric embrace", 19.0f)
+            }
+        )
+    );
     triggers.push_back(
         new TriggerNode(
             "low mana",

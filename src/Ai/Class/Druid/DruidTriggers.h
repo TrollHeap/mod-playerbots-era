@@ -19,6 +19,10 @@
 
 constexpr uint32 AURA_OMEN_OF_CLARITY = 16864;
 
+// mod-era-talents (patch 0021): the Vanilla-era Omen of Clarity is a same-name ACTIVATED
+// buff clone — resolve to whichever id this druid actually knows (stock passive or clone).
+extern uint32 EraTalentBots_ResolveSpellId(Player* bot, uint32 stockSpellId);
+
 class PlayerbotAI;
 
 class MarkOfTheWildOnPartyTrigger : public BuffOnPartyTrigger
@@ -139,7 +143,7 @@ public:
             return false;
 
         // Cat with Omen of Clarity: spam to fish for Clearcasting procs
-        if (bot->HasAura(AURA_OMEN_OF_CLARITY))
+        if (bot->HasAura(EraTalentBots_ResolveSpellId(bot, AURA_OMEN_OF_CLARITY)))
         {
             Unit* target = GetTarget();
             return target && target->IsAlive() && target->IsInWorld();
