@@ -147,6 +147,19 @@ bool RpgSellTrigger::IsActive()
     return true;
 }
 
+bool RpgEconomyTrigger::IsActive()
+{
+    if (sRandomPlayerbotMgr.GetValue(bot, "economy_visit"))
+        return false;
+
+    GuidPosition target(getGuidP());
+    if (target.HasNpcFlag(UNIT_NPC_FLAG_AUCTIONEER))
+        return true;
+
+    GameObjectTemplate const* info = target.GetGameObjectTemplate();
+    return info && (info->type == GAMEOBJECT_TYPE_MAILBOX || info->type == GAMEOBJECT_TYPE_GUILD_BANK);
+}
+
 bool RpgRepairTrigger::IsActive()
 {
     GuidPosition guidP(getGuidP());

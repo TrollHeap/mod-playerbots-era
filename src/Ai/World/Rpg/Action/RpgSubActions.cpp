@@ -8,6 +8,7 @@
 #include "BudgetValues.h"
 #include "ChooseRpgTargetAction.h"
 #include "EmoteAction.h"
+#include "EraEconomy.h"
 #include "Formations.h"
 #include "GossipDef.h"
 #include "GuildCreateActions.h"
@@ -16,6 +17,7 @@
 #include "PlayerbotTextMgr.h"
 #include "Playerbots.h"
 #include "PossibleRpgTargetsValue.h"
+#include "RpgEconomyLimits.h"
 #include "SocialMgr.h"
 
 void RpgHelper::OnExecute(std::string nextAction)
@@ -254,6 +256,30 @@ Event RpgBuyAction::ActionEvent(Event /*event*/) { return Event("rpg action", "v
 std::string const RpgSellAction::ActionName() { return "sell"; }
 
 Event RpgSellAction::ActionEvent(Event /*event*/) { return Event("rpg action", "vendor"); }
+
+bool RpgEconomyAction::isUseful()
+{
+    if (!rpg->InRange())
+        return false;
+
+    GuidPosition target = rpg->guidP();
+    if (target.HasNpcFlag(UNIT_NPC_FLAG_AUCTIONEER))
+        return true;
+
+    GameObjectTemplate const* info = target.GetGameObjectTemplate();
+    return info && (info->type == GAMEOBJECT_TYPE_MAILBOX || info->type == GAMEOBJECT_TYPE_GUILD_BANK);
+}
+
+bool RpgEconomyAction::Execute(Event /*event*/)
+{
+    // Auction house, mail and guild bank are thread-unsafe: the visit runs on the world thread.
+    bool queued = EraEconomy::QueueVisit(bot, rpg->guid());
+    rpg->AfterExecute(queued, true);
+    sRandomPlayerbotMgr.SetEventValue(bot->GetGUID().GetCounter(), "economy_visit", 1,
+                                      RPG_ECONOMY_VISIT_COOLDOWN_SECONDS);
+    rpg->OnExecute("rpg cancel");
+    return queued;
+}
 
 std::string const RpgRepairAction::ActionName() { return "repair"; }
 

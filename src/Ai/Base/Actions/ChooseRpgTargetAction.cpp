@@ -154,11 +154,11 @@ bool ChooseRpgTargetAction::Execute(Event /*event*/)
 
     for (auto& target : targets)
     {
-        Unit* unit = ObjectAccessor::GetUnit(*bot, target.first);
-        if (!unit)
+        WorldObject* object = ObjectAccessor::GetWorldObject(*bot, target.first);
+        if (!object)
             continue;
 
-        GuidPosition guidP(unit);
+        GuidPosition guidP(object);
         if (!guidP || !guidP.getMap())
             continue;
 
@@ -232,11 +232,11 @@ bool ChooseRpgTargetAction::Execute(Event /*event*/)
 
     for (auto& target : targets)
     {
-        Unit* unit = ObjectAccessor::GetUnit(*bot, target.first);
-        if (!unit)
+        WorldObject* object = ObjectAccessor::GetWorldObject(*bot, target.first);
+        if (!object)
             continue;
 
-        GuidPosition guidP(unit);
+        GuidPosition guidP(object);
         if (!guidP)
             continue;
 
@@ -284,7 +284,8 @@ bool ChooseRpgTargetAction::isUseful()
     //if (travelTarget->isTraveling() && AI_VALUE2(bool, "can free move to", *travelTarget->getPosition()))
         //return false;
 
-    if (AI_VALUE(GuidVector, "possible rpg targets").empty())
+    if (AI_VALUE(GuidVector, "possible rpg targets").empty() &&
+        AI_VALUE(GuidVector, "nearest game objects no los").empty())
         return false;
 
     //Not stay, not guard, not combat, not trading and group ready.

@@ -125,6 +125,14 @@ void RpgStrategy::InitTriggers(std::vector<TriggerNode*>& triggers)
     );
     triggers.push_back(
         new TriggerNode(
+            "rpg economy",
+            {
+                NextAction("rpg economy", 1.200f)
+            }
+        )
+    );
+    triggers.push_back(
+        new TriggerNode(
             "rpg repair",
             {
                 NextAction("rpg repair", 1.195f)

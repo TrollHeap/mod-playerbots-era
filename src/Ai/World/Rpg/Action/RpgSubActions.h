@@ -152,6 +152,15 @@ private:
     Event ActionEvent(Event event) override;
 };
 
+class RpgEconomyAction : public RpgSubAction
+{
+public:
+    RpgEconomyAction(PlayerbotAI* botAI, std::string const name = "rpg economy") : RpgSubAction(botAI, name) {}
+
+    bool isUseful() override;
+    bool Execute(Event event) override;
+};
+
 class RpgRepairAction : public RpgSubAction
 {
 public:

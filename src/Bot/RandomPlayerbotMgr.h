@@ -188,6 +188,8 @@ protected:
     void OnBotLoginInternal(Player* const bot) override;
 
 private:
+    friend class RpgEconomyAction;
+    friend struct EraEconomyAccess;
     bool IsWatchingWsgMatch(Battleground const* bg) const;
 
     RandomPlayerbotMgr() : PlayerbotHolder()

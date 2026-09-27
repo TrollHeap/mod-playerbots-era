@@ -6,6 +6,7 @@
 
 #include "SellAction.h"
 #include "ChatHelper.h"
+#include "EraEconomy.h"
 #include "Event.h"
 #include "ItemPackets.h"
 #include "ItemUsageValue.h"
@@ -81,6 +82,8 @@ public:
     bool Visit(Item* item) override
     {
         ItemUsage usage = context->GetValue<ItemUsage>("item usage", item->GetEntry())->Get();
+        if (usage == ITEM_USAGE_AH && EraEconomy::IsMarketItem(item->GetTemplate()))
+            return true;
         if (usage != ITEM_USAGE_VENDOR && usage != ITEM_USAGE_AH)
             return true;
 
