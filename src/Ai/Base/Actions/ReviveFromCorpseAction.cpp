@@ -77,6 +77,31 @@ bool FindCorpseAction::Execute(Event /*event*/)
     if (bot->InBattleground())
         return false;
 
+    // GetCorpse() only resolves objects on the current map. Ghosts released
+    // outside an instance must reach its portal before that object is available.
+    if (bot->HasCorpse() && bot->GetCorpseLocation().GetMapId() != bot->GetMapId())
+    {
+        for (auto const& [id, teleport] : sObjectMgr->GetAllAreaTriggerTeleports())
+        {
+            if (teleport.target_mapId != bot->GetCorpseLocation().GetMapId())
+                continue;
+
+            AreaTrigger const* entrance = sObjectMgr->GetAreaTrigger(id);
+            if (!entrance || entrance->map != bot->GetMapId())
+                continue;
+
+            if (!bot->IsInAreaTriggerRadius(entrance))
+                return MoveTo(entrance->map, entrance->x, entrance->y, entrance->z);
+
+            WorldPacket packet(CMSG_AREATRIGGER);
+            packet << id;
+            packet.rpos(0);
+            bot->GetSession()->HandleAreaTriggerOpcode(packet);
+            return true;
+        }
+        return false;
+    }
+
     Player* groupLeader = botAI->GetGroupLeader();
     Corpse* corpse = bot->GetCorpse();
     if (!corpse)
@@ -200,7 +225,7 @@ bool FindCorpseAction::isUseful()
     if (bot->InBattleground())
         return false;
 
-    return bot->GetCorpse();
+    return bot->HasCorpse();
 }
 
 GraveyardStruct const* SpiritHealerAction::GetGrave(bool startZone)
