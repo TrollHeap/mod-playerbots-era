@@ -5,6 +5,8 @@
  */
 
 #include "PartyMemberToHeal.h"
+#include "Config.h"
+#include "EraWsgSkill.h"
 #include "Playerbots.h"
 #include "ServerFacade.h"
 
@@ -87,6 +89,12 @@ Unit* PartyMemberToHeal::Calculate()
                 {
                     probeValue = health + player->GetDistance2d(bot) / 10.0f;
                 }
+                // Era: in Warsong, a wounded flag carrier comes first, more so for skilled healers.
+                if (bot->GetMapId() == 489 && health < sPlayerbotAIConfig.almostFullHealth &&
+                    (player->HasAura(23333) || player->HasAura(23335)) &&
+                    sConfigMgr->GetOption<bool>("AiPlayerbot.EraWsgSkillTiers", true))
+                    probeValue -= EraWsgSkill::ParamsFor(EraWsgSkill::TierFor(bot->GetGUID().GetCounter()))
+                                      .carrierHealBonus;
                 // delay Check player to here for better performance
                 if (probeValue < calc.minValue && Check(player))
                 {

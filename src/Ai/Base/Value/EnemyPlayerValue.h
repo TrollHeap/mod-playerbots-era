@@ -7,6 +7,7 @@
 #ifndef PLAYERBOTS_ENEMYPLAYERVALUE_H
 #define PLAYERBOTS_ENEMYPLAYERVALUE_H
 
+#include "EraWsgSkill.h"
 #include "PlayerbotAIConfig.h"
 #include "PossibleTargetsValue.h"
 #include "TargetValue.h"
@@ -38,10 +39,13 @@ public:
 
 private:
     Unit* SelectWsgTarget();
+    Unit* SelectWsgTargetLegacy();
     float GetMaxAttackDistance();
 
     ObjectGuid lockedTarget;
     uint64 lockedTargetUntil = 0;
+    EraWsgSkill::State skillState;
+    bool wsgReacting = false;
 };
 
 #endif

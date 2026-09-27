@@ -1386,7 +1386,12 @@ AiPlayerbot.NonCombatStrategies = ""
 
 # Era: shared combat style for PvP Life and Warsong Gulch only. Other battlegrounds keep their own strategies.
 # The old PvPLife.Strategies.Combat value is used when this option is absent.
-AiPlayerbot.EraPvpCombatStrategies = "+pvp,+boost,+dps debuff,-passive,-stay"
+AiPlayerbot.EraPvpCombatStrategies = "+pvp,+boost,-passive,-stay"
+
+# Era: human-like Warsong Gulch targeting by stable per-bot skill tier (3-4 strong, 4-5 average,
+# 1-2 weak out of 10): reaction delay, kept target, focus, carrier defense and heal priority.
+# 0 restores the previous Warsong target selection.
+AiPlayerbot.EraWsgSkillTiers = 1
 
 # Remove "healer dps" strategy on the maps specified below.
 # Default: 1 (enabled)

@@ -495,7 +495,10 @@ void AiFactory::AddDefaultCombatStrategies(Player* player, PlayerbotAI* const fa
         {
             engine->addStrategy("warsong", false);
             engine->ChangeStrategy(sConfigMgr->GetOption<std::string>("AiPlayerbot.EraPvpCombatStrategies",
-                "+pvp,+boost,+dps debuff,-passive,-stay"));
+                "+pvp,+boost,-passive,-stay"));
+            // Healers take enemy targets from dps assist only, instead of chasing players at 40 yd.
+            if (PlayerbotAI::IsHeal(player))
+                engine->removeStrategy("pvp", false);
         }
 
         if (bgType == BATTLEGROUND_AB)

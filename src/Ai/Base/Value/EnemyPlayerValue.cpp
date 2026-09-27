@@ -7,10 +7,14 @@
 #include "EnemyPlayerValue.h"
 #include "BattlegroundWS.h"
 #include "CombatManager.h"
+#include "Config.h"
 #include "GameTime.h"
+#include "Group.h"
 #include "Playerbots.h"
 #include "ServerFacade.h"
 #include "Vehicle.h"
+
+#include <unordered_map>
 
 namespace
 {
@@ -34,6 +38,72 @@ bool IsWsgCasterOrHealer(Player const* player)
 }
 
 Unit* EnemyPlayerValue::SelectWsgTarget()
+{
+    wsgReacting = false;
+    if (!sConfigMgr->GetOption<bool>("AiPlayerbot.EraWsgSkillTiers", true))
+        return SelectWsgTargetLegacy();
+
+    Battleground* bg = bot->GetBattleground();
+    if (!bg || bg->GetBgTypeID() != BATTLEGROUND_WS || bg->GetStatus() != STATUS_IN_PROGRESS)
+        return nullptr;
+
+    auto isCandidate = [&](Unit* unit)
+    {
+        return unit && unit->IsPlayer() && unit->IsAlive() && botAI->IsOpposing(unit->ToPlayer()) &&
+               bot->IsWithinDistInMap(unit, 40.0f) && bot->IsWithinLOSInMap(unit);
+    };
+    auto* ws = static_cast<BattlegroundWS*>(bg);
+    Unit* enemyCarrier = botAI->GetUnit(ws->GetFlagPickerGUID(bot->GetTeamId()));
+    if (!isCandidate(enemyCarrier))
+        enemyCarrier = nullptr;
+    Unit* teamCarrier = botAI->GetUnit(ws->GetFlagPickerGUID(bg->GetOtherTeamId(bot->GetTeamId())));
+
+    uint32 const self = bot->GetGUID().GetCounter();
+    EraWsgSkill::Tier const tier = EraWsgSkill::TierFor(self);
+    EraWsgSkill::Params const params = EraWsgSkill::ParamsFor(tier);
+
+    // Allies already hitting a target make focus emerge without a global call.
+    std::unordered_map<uint64, uint32> allies;
+    if (Group* group = bot->GetGroup())
+        for (GroupReference* ref = group->GetFirstMember(); ref; ref = ref->next())
+            if (Player* member = ref->GetSource())
+                if (member != bot && member->IsAlive() && member->GetVictim() &&
+                    bot->IsWithinDistInMap(member, 40.0f))
+                    ++allies[member->GetVictim()->GetGUID().GetRawValue()];
+
+    std::vector<EraWsgSkill::Candidate> candidates;
+    std::unordered_map<uint64, Unit*> units;
+    for (ObjectGuid const guid : AI_VALUE(GuidVector, "nearest enemy players"))
+    {
+        Unit* unit = botAI->GetUnit(guid);
+        if (!isCandidate(unit))
+            continue;
+        bool const threat = teamCarrier && (unit->IsInCombatWith(teamCarrier) ||
+            (params.anticipationRange > 0.0f && unit->GetExactDist(teamCarrier) <= params.anticipationRange));
+        auto const hitting = allies.find(guid.GetRawValue());
+        candidates.push_back({guid.GetRawValue(), unit->GetHealthPct(), bot->GetDistance(unit),
+                              hitting == allies.end() ? 0 : hitting->second,
+                              IsWsgCasterOrHealer(unit->ToPlayer()), threat});
+        units[guid.GetRawValue()] = unit;
+    }
+
+    uint64 const now = GameTime::GetGameTimeMS().count();
+    Unit* victim = bot->GetVictim();
+    uint64 const chosen = EraWsgSkill::Choose(tier, skillState, candidates,
+        enemyCarrier ? enemyCarrier->GetGUID().GetRawValue() : 0,
+        teamCarrier && EraWsgSkill::Chance(self, now, params.carrierDefenseChance),
+        isCandidate(victim) ? victim->GetGUID().GetRawValue() : 0, now);
+    if (enemyCarrier && chosen == enemyCarrier->GetGUID().GetRawValue())
+        return enemyCarrier;
+    auto const unit = units.find(chosen);
+    if (unit != units.end())
+        return unit->second;
+    // Still noticing enemies: no instant pick from the generic selection either.
+    wsgReacting = !candidates.empty();
+    return nullptr;
+}
+
+Unit* EnemyPlayerValue::SelectWsgTargetLegacy()
 {
     Battleground* bg = bot->GetBattleground();
     if (!bg || bg->GetBgTypeID() != BATTLEGROUND_WS || bg->GetStatus() != STATUS_IN_PROGRESS)
@@ -132,6 +202,8 @@ Unit* EnemyPlayerValue::Calculate()
 {
     if (Unit* target = SelectWsgTarget())
         return target;
+    if (wsgReacting)
+        return nullptr;
 
     bool controllingCannon = false;
     bool controllingVehicle = false;
