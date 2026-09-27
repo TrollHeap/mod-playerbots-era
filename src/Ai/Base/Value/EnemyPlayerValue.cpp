@@ -67,9 +67,10 @@ Unit* EnemyPlayerValue::SelectWsgTarget()
     if (Group* group = bot->GetGroup())
         for (GroupReference* ref = group->GetFirstMember(); ref; ref = ref->next())
             if (Player* member = ref->GetSource())
-                if (member != bot && member->IsAlive() && member->GetVictim() &&
-                    bot->IsWithinDistInMap(member, 40.0f))
-                    ++allies[member->GetVictim()->GetGUID().GetRawValue()];
+                // Same map first: a member elsewhere is updated by another map thread.
+                if (member != bot && bot->IsWithinDistInMap(member, 40.0f) && member->IsAlive())
+                    if (Unit* target = member->GetVictim())
+                        ++allies[target->GetGUID().GetRawValue()];
 
     std::vector<EraWsgSkill::Candidate> candidates;
     std::unordered_map<uint64, Unit*> units;
@@ -83,7 +84,8 @@ Unit* EnemyPlayerValue::SelectWsgTarget()
         auto const hitting = allies.find(guid.GetRawValue());
         candidates.push_back({guid.GetRawValue(), unit->GetHealthPct(), bot->GetDistance(unit),
                               hitting == allies.end() ? 0 : hitting->second,
-                              IsWsgCasterOrHealer(unit->ToPlayer()), threat, unit->GetVictim() == bot});
+                              IsWsgCasterOrHealer(unit->ToPlayer()), threat,
+                              unit->GetVictim() == bot || (unit->GetTarget() == bot->GetGUID() && unit->IsInCombatWith(bot))});
         units[guid.GetRawValue()] = unit;
     }
 
@@ -92,7 +94,8 @@ Unit* EnemyPlayerValue::SelectWsgTarget()
     uint64 const chosen = EraWsgSkill::Choose(tier, skillState, candidates,
         enemyCarrier ? enemyCarrier->GetGUID().GetRawValue() : 0,
         teamCarrier && EraWsgSkill::Chance(self, now, params.carrierDefenseChance),
-        isCandidate(victim) ? victim->GetGUID().GetRawValue() : 0, now);
+        isCandidate(victim) ? victim->GetGUID().GetRawValue() : 0, now,
+        EraWsgSkill::Chance(self ^ 0x9e3779b9U, now, params.answerChance));
     if (enemyCarrier && chosen == enemyCarrier->GetGUID().GetRawValue())
         return enemyCarrier;
     auto const unit = units.find(chosen);

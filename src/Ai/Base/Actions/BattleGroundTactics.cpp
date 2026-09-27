@@ -21,6 +21,7 @@
 #include "BattlegroundRV.h"
 #include "BattlegroundSA.h"
 #include "BattlegroundWS.h"
+#include "EraWsgSkill.h"
 #include "Event.h"
 #include "GameObject.h"
 #include "IVMapMgr.h"
@@ -194,24 +195,42 @@ int32 BGTactics::GetWsgEscortSlot(Player* player, Unit* carrier)
         carrier->GetMap() != player->GetMap() || !carrier->IsFriendlyTo(player))
         return -1;
 
-    PlayerbotAI* ai = GET_PLAYERBOT_AI(player);
+    // Era: like real teams, only a few escort: up to two healers, then strong players, three at most.
     uint32 defenders = GetWsgDefenderCount(bg, player->GetTeamId());
-    if (!ai || !ai->IsHeal(player) || ai->GetAiObjectContext()->GetValue<uint32>("bg role")->Get() < defenders)
+    auto escortRank = [defenders](Player* candidate) -> int32
+    {
+        PlayerbotAI* candidateAI = GET_PLAYERBOT_AI(candidate);
+        if (!candidateAI || candidateAI->GetAiObjectContext()->GetValue<uint32>("bg role")->Get() < defenders)
+            return -1;
+        if (candidateAI->IsHeal(candidate))
+            return 0;
+        return EraWsgSkill::TierFor(candidate->GetGUID().GetCounter()) == EraWsgSkill::Tier::Strong ? 1 : -1;
+    };
+    int32 rank = escortRank(player);
+    if (rank < 0)
         return -1;
 
-    uint32 slot = 0;
+    uint32 healers = 0, healersBefore = 0, strongBefore = 0;
     for (auto const& reference : bg->GetBgMap()->GetPlayers())
     {
         Player* candidate = reference.GetSource();
-        if (!candidate || candidate == carrier || !candidate->IsAlive() ||
-            candidate->GetTeamId() != player->GetTeamId() || !(candidate->GetGUID() < player->GetGUID()))
+        if (!candidate || candidate == carrier || candidate == player || !candidate->IsAlive() ||
+            candidate->GetTeamId() != player->GetTeamId())
             continue;
-        PlayerbotAI* candidateAI = GET_PLAYERBOT_AI(candidate);
-        if (candidateAI && candidateAI->IsHeal(candidate) &&
-            candidateAI->GetAiObjectContext()->GetValue<uint32>("bg role")->Get() >= defenders)
-            ++slot;
+        int32 candidateRank = escortRank(candidate);
+        bool before = candidate->GetGUID() < player->GetGUID();
+        if (candidateRank == 0)
+        {
+            ++healers;
+            healersBefore += before;
+        }
+        else if (candidateRank == 1)
+            strongBefore += before;
     }
-    return slot < 2 ? int32(slot) : -1;
+    if (rank == 0)
+        return healersBefore < 2 ? int32(healersBefore) : -1;
+    uint32 slot = std::min(healers, 2u) + strongBefore;
+    return slot < 3 ? int32(slot) : -1;
 }
 
 bool BGTactics::IsWsgStartingArea(Player* player)
@@ -2452,6 +2471,9 @@ bool BGTactics::selectObjective(bool reset)
                 if (GameObject* flag = bg->GetBgMap()->GetGameObject(ws->GetDroppedFlagGUID(enemy)))
                     target.Relocate(flag->GetPosition());
             }
+            // Era: non-escort attackers come home with our carrier instead of idling in the enemy flag room.
+            else if (teamFC)
+                target = team == TEAM_ALLIANCE ? WS_FLAG_POS_ALLIANCE : WS_FLAG_POS_HORDE;
 
             if (target.IsPositionValid())
             {
@@ -4402,7 +4424,8 @@ bool BGTactics::protectFC()
     if (bg->GetMapId() == 489)
     {
         int32 slot = GetWsgEscortSlot(bot, teamFC);
-        if (slot < 0 || bot->IsInCombat())
+        // A fighting escort engages the enemy it selected instead of holding its slot.
+        if (slot < 0 || bot->IsInCombat() || (!PlayerbotAI::IsHeal(bot) && AI_VALUE(Unit*, "enemy player target")))
             return false;
         float angle = (slot * 2 + 1) * float(M_PI) / 4.0f;
         float distance = 8.0f + 3.0f * (slot / 2);

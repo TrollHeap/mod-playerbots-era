@@ -27,7 +27,7 @@ bool AttackEnemyFlagCarrierAction::isUseful()
 {
     Unit* target = context->GetValue<Unit*>("enemy flag carrier")->Get();
     return target && ServerFacade::instance().IsDistanceLessOrEqualThan(ServerFacade::instance().GetDistance2d(bot, target), 100.0f) &&
-           PlayerHasFlag::IsCapturingFlag(bot);
+           !PlayerHasFlag::IsCapturingFlag(bot);
 }
 
 bool AggressiveTargetAction::isUseful()
