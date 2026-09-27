@@ -5,6 +5,7 @@
  */
 
 #include "TotemsShamanStrategy.h"
+#include "EraKnownSpell.h"
 #include "Playerbots.h"
 
 namespace
@@ -17,12 +18,6 @@ constexpr uint32 SPELL_WRATH_OF_AIR_TOTEM = 3738;
 constexpr uint32 SPELL_GROUNDING_TOTEM = 8177;
 constexpr uint32 SPELL_WINDFURY_TOTEM = 8512;
 }
-
-// mod-era-talents (patch 0021): era-transparent spell lookup — returns the id this character
-// KNOWS for a stock spell (the stock id itself, or its same-name Vanilla-era clone), else 0.
-// Drop-in for HasSpell; the returned id is also the one to cast or compare identities with.
-extern uint32 EraTalentBots_ResolveSpellId(Player* bot, uint32 stockSpellId);
-static inline uint32 EraKnown(Player* bot, uint32 spellId) { return EraTalentBots_ResolveSpellId(bot, spellId); }
 
 // These combat strategies are used to set the corresponding totems on the bar, and cast the totem when it's missing.
 // There are special cases for Totem of Wrath, Windfury Totem, Wrath of Air totem, and Cleansing totem - these totems

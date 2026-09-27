@@ -9,10 +9,7 @@
 #include "PlayerbotAI.h"
 #include "Playerbots.h"
 #include "TotemsShamanStrategy.h"
-
-// mod-era-talents (patch 0021): era-transparent spell lookup — see ShamanTriggers.cpp.
-extern uint32 EraTalentBots_ResolveSpellId(Player* bot, uint32 stockSpellId);
-static inline uint32 EraKnown(Player* bot, uint32 spellId) { return EraTalentBots_ResolveSpellId(bot, spellId); }
+#include "EraKnownSpell.h"
 
 bool CastTotemAction::isUseful()
 {

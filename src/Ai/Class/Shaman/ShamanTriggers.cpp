@@ -14,25 +14,7 @@
 #include "TotemsShamanStrategy.h"
 #include "Unit.h"
 #include <ctime>
-
-// mod-era-talents (patch 0021): era-transparent spell lookup — returns the id this character
-// KNOWS for a stock spell (the stock id itself, or its same-name Vanilla-era clone), else 0.
-// Drop-in for HasSpell; the returned id is also the one to cast or compare identities with
-// (a Vanilla bot's totem carries the CLONE id in UNIT_CREATED_BY_SPELL).
-extern uint32 EraTalentBots_ResolveSpellId(Player* bot, uint32 stockSpellId);
-static inline uint32 EraKnown(Player* bot, uint32 spellId) { return EraTalentBots_ResolveSpellId(bot, spellId); }
-static bool EraKnownMatchesAny(Player* bot, uint32 currentSpell, uint32 const* arr, size_t n)
-{
-    for (size_t i = 0; i < n; ++i)
-    {
-        if (currentSpell == arr[i])
-            return true;
-        uint32 eraSpell = EraKnown(bot, arr[i]);
-        if (eraSpell && currentSpell == eraSpell)
-            return true;
-    }
-    return false;
-}
+#include "EraKnownSpell.h"
 
 bool MainHandWeaponNoImbueTrigger::IsActive()
 {

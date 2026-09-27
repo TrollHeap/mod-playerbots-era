@@ -13,12 +13,7 @@
 #include "RandomPlayerbotMgr.h"
 #include "World.h"
 #include "WorldPacket.h"
-
-// mod-era-talents (patch 0021): era-transparent spell lookup — returns the id this character
-// KNOWS for a stock spell (the stock id itself, or its same-name Vanilla-era clone), else 0.
-extern uint32 EraTalentBots_ResolveSpellId(Player* bot, uint32 stockSpellId);
-static inline uint32 EraKnown(Player* bot, uint32 spellId) { return EraTalentBots_ResolveSpellId(bot, spellId); }
-
+#include "EraKnownSpell.h"
 
 using namespace lfg;
 
