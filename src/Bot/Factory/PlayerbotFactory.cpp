@@ -2340,6 +2340,33 @@ void Shuffle(std::vector<uint32>& items)
 //     }
 // }
 
+// Era: pick one of the topN best (score, index) candidates, weighted by score, so bots of the same
+// class and spec stop wearing identical kits. Candidates under 80% of the best score never enter
+// the pool; topN 1 keeps the strict best (first one on ties). `roll` is in [0, 1).
+// ponytail: linear score weighting with a fixed 80% floor; make the floor configurable if needed.
+static std::pair<float, size_t> PickGearCandidate(std::vector<std::pair<float, size_t>> candidates, uint32 topN,
+                                                  float roll)
+{
+    std::stable_sort(candidates.begin(), candidates.end(),
+                     [](auto const& a, auto const& b) { return a.first > b.first; });
+    float const floor = candidates.front().first * 0.8f;
+    size_t pool = 1;
+    while (pool < std::min<size_t>(topN, candidates.size()) && candidates[pool].first > 0.0f &&
+           candidates[pool].first >= floor)
+        ++pool;
+    float total = 0.0f;
+    for (size_t i = 0; i < pool; ++i)
+        total += candidates[i].first;
+    float target = roll * total;
+    for (size_t i = 0; i < pool; ++i)
+    {
+        if (target < candidates[i].first)
+            return candidates[i];
+        target -= candidates[i].first;
+    }
+    return candidates.front();
+}
+
 void PlayerbotFactory::InitEquipment(bool incremental, bool second_chance)
 {
     if (level < 5)
@@ -2546,9 +2573,8 @@ void PlayerbotFactory::InitEquipment(bool incremental, bool second_chance)
             continue;
         }
 
+        std::vector<std::pair<float, size_t>> candidates;
         float bestScoreForSlot = -1;
-        uint32 bestItemForSlot = 0;
-        int32 bestRandomPropForSlot = 0;
         for (size_t index = 0; index < ids.size(); index++)
         {
             uint32 newItemId = ids[index].first;
@@ -2565,18 +2591,25 @@ void PlayerbotFactory::InitEquipment(bool incremental, bool second_chance)
                     cur_score *= 3.0f;  // 3x multiplier for preferred armor type
             }
 
-            if (cur_score > bestScoreForSlot)
-            {
-                // delay heavy check to here
-                if (!CanEquipItem(proto))
-                    continue;
-                uint16 dest;
-                if (!CanEquipUnseenItem(slot, dest, newItemId))
-                    continue;
-                bestScoreForSlot = cur_score;
-                bestItemForSlot = newItemId;
-                bestRandomPropForSlot = newItemProp;
-            }
+            // Era: with a single pick only a new best can win, so keep the heavy check lazy.
+            if (sPlayerbotAIConfig.randomGearTopN == 1 && cur_score <= bestScoreForSlot)
+                continue;
+            if (!CanEquipItem(proto))
+                continue;
+            uint16 dest;
+            if (!CanEquipUnseenItem(slot, dest, newItemId))
+                continue;
+            bestScoreForSlot = std::max(bestScoreForSlot, cur_score);
+            candidates.push_back({cur_score, index});
+        }
+        uint32 bestItemForSlot = 0;
+        int32 bestRandomPropForSlot = 0;
+        if (!candidates.empty())
+        {
+            auto [pickedScore, pickedIndex] = PickGearCandidate(candidates, sPlayerbotAIConfig.randomGearTopN, rand_norm());
+            bestScoreForSlot = pickedScore;
+            bestItemForSlot = ids[pickedIndex].first;
+            bestRandomPropForSlot = ids[pickedIndex].second;
         }
 
         if (bestItemForSlot == 0)
@@ -2667,9 +2700,8 @@ void PlayerbotFactory::InitEquipment(bool incremental, bool second_chance)
             if (ids.empty())
                 continue;
 
+            std::vector<std::pair<float, size_t>> candidates;
             float bestScoreForSlot = -1;
-            uint32 bestItemForSlot = 0;
-            int32 bestRandomPropForSlot = 0;
             for (size_t index = 0; index < ids.size(); index++)
             {
                 uint32 newItemId = ids[index].first;
@@ -2686,18 +2718,25 @@ void PlayerbotFactory::InitEquipment(bool incremental, bool second_chance)
                         cur_score *= 3.0f;  // 3x multiplier for preferred armor type
                 }
 
-                if (cur_score > bestScoreForSlot)
-                {
-                    // delay heavy check to here
-                    if (!CanEquipItem(proto))
-                        continue;
-                    uint16 dest;
-                    if (!CanEquipUnseenItem(slot, dest, newItemId))
-                        continue;
-                    bestScoreForSlot = cur_score;
-                    bestItemForSlot = newItemId;
-                    bestRandomPropForSlot = newItemProp;
-                }
+                // Era: with a single pick only a new best can win, so keep the heavy check lazy.
+                if (sPlayerbotAIConfig.randomGearTopN == 1 && cur_score <= bestScoreForSlot)
+                    continue;
+                if (!CanEquipItem(proto))
+                    continue;
+                uint16 dest;
+                if (!CanEquipUnseenItem(slot, dest, newItemId))
+                    continue;
+                bestScoreForSlot = std::max(bestScoreForSlot, cur_score);
+                candidates.push_back({cur_score, index});
+            }
+            uint32 bestItemForSlot = 0;
+            int32 bestRandomPropForSlot = 0;
+            if (!candidates.empty())
+            {
+                auto [pickedScore, pickedIndex] = PickGearCandidate(candidates, sPlayerbotAIConfig.randomGearTopN, rand_norm());
+                bestScoreForSlot = pickedScore;
+                bestItemForSlot = ids[pickedIndex].first;
+                bestRandomPropForSlot = ids[pickedIndex].second;
             }
 
             if (bestItemForSlot == 0)

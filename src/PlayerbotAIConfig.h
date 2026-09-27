@@ -156,6 +156,7 @@ public:
     std::vector<uint32> randomBotQuestIds;
     uint32 randomBotTeleportDistance;
     float randomGearLoweringChance;
+    uint32 randomGearTopN;
     int32 randomGearQualityLimit;
     int32 randomGearScoreLimit;
     bool preferClassArmorType;

@@ -24,6 +24,7 @@
 #include "PlayerScript.h"
 #include "PlayerbotAIConfig.h"
 #include "PlayerbotCommandScript.h"
+#include "PlayerbotFactory.h"
 #include "PlayerbotGuildMgr.h"
 #include "PlayerbotSpellRepository.h"
 #include "PlayerbotWorldThreadProcessor.h"
@@ -321,6 +322,14 @@ public:
     void OnPlayerResurrect(Player* player, float /*restorePercent*/, bool& /*applySickness*/) override
     {
         sRandomPlayerbotMgr.RecordWsgHumanEvent(player, "resurrect", 0, ObjectGuid::Empty);
+        // Era: a bot logging in dead cannot be equipped (EQUIP_ERR_YOU_ARE_DEAD), so the login
+        // repair leaves it naked; finish that repair once it is alive again.
+        if (sRandomPlayerbotMgr.IsRandomBot(player))
+        {
+            PlayerbotFactory factory(player, player->GetLevel());
+            if (factory.HasMissingCoreGear())
+                factory.InitEquipment(true);
+        }
     }
 
     void OnPlayerLearnTalents(Player* player, uint32 talentId, uint32 talentRank, uint32 spellId) override

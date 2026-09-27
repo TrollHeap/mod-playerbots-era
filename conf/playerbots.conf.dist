@@ -1217,6 +1217,11 @@ AiPlayerbot.LimitGearExpansion = 1
 # Set between 0 (0%) and 1 (100%)
 AiPlayerbot.RandomGearLoweringChance = 0
 
+# Era: generated gear picks one of the N best candidates per slot, weighted by score
+# (only candidates scoring at least 80% of the best). 1 keeps the strict best item.
+# Default: 1
+AiPlayerbot.RandomGearTopN = 1
+
 # Unobtainable or unusable items (comma-separated list of item IDs)
 # Defaults: Chilton Wand (12468), Frenzyheart Insignia of Fury test/on-use row (44869),
 #           Oracle Talisman of Ablution test/on-use row (44870), Totem of the Earthen Ring (46978)
