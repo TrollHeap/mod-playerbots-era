@@ -35,6 +35,12 @@ constexpr uint32 SPELL_CAT_FORM = 768;
 constexpr uint32 SPELL_DRUID_THICK_HIDE = 16931;
 }
 
+// mod-era-talents (patch 0020/0021 support): era-transparent spell lookup — returns the id
+// this character KNOWS for a stock spell (stock itself, or its same-name Vanilla-era clone),
+// else 0. Drop-in for HasSpell/HasAura(id) truthiness on era-swapped discriminators.
+extern uint32 EraTalentBots_ResolveSpellId(Player* bot, uint32 stockSpellId);
+static inline uint32 EraKnown(Player* bot, uint32 spellId) { return EraTalentBots_ResolveSpellId(bot, spellId); }
+
 AiObjectContext* AiFactory::createAiObjectContext(Player* player, PlayerbotAI* botAI)
 {
     switch (player->getClass())
@@ -109,6 +115,24 @@ uint8 AiFactory::GetPlayerSpecTab(Player* bot)
 std::map<uint8, uint32> AiFactory::GetPlayerSpecTabs(Player* bot)
 {
     std::map<uint8, uint32> tabs = {{0, 0}, {0, 0}, {0, 0}};
+
+    // mod-era-talents (patch 0020): a managed-era bot's talents live in era_character_talent
+    // rows, not the native talent map (stripped by the era reconcile) — without this every
+    // downstream spec consumer (GetPlayerSpecTab, IsTank/IsHeal, strategy init,
+    // StatsWeightCalculator gear scoring, raid triggers) reads the bot as untalented and
+    // falls back to a dps-ish class default (a prot-built warrior gears/plays Arms). The
+    // module caches per guid, so this is a memory read on the hot paths; it returns false
+    // for real players, unmanaged bands, and when the module/knob is off.
+    extern bool EraTalentBots_SpecTabs(Player* bot, uint32* tabs3);
+    uint32 eraTabs[3] = {0, 0, 0};
+    if (EraTalentBots_SpecTabs(bot, eraTabs))
+    {
+        tabs[0] = eraTabs[0];
+        tabs[1] = eraTabs[1];
+        tabs[2] = eraTabs[2];
+        return tabs;
+    }
+
     PlayerTalentMap const& talentMap = bot->GetTalentMap();
     for (PlayerTalentMap::const_iterator i = talentMap.begin(); i != talentMap.end(); ++i)
     {
@@ -354,7 +378,7 @@ void AiFactory::AddDefaultCombatStrategies(Player* player, PlayerbotAI* const fa
                 engine->addStrategiesNoInit("resto", "cure", "dps assist", "tranquility", nullptr);
             else
             {
-                if (player->HasSpell(SPELL_CAT_FORM) && !player->HasAura(SPELL_DRUID_THICK_HIDE))
+                if (player->HasSpell(SPELL_CAT_FORM) && !player->HasAura(EraKnown(player, SPELL_DRUID_THICK_HIDE)))
                     engine->addStrategiesNoInit("cat", "aoe", "cc", "dps assist", "feral charge", nullptr);
                 else
                     engine->addStrategiesNoInit("bear", "tank assist", "pull", "pull back", "feral charge", nullptr);
@@ -546,7 +570,7 @@ void AiFactory::AddDefaultNonCombatStrategies(Player* player, PlayerbotAI* const
         case CLASS_DRUID:
             if (tab == DRUID_TAB_FERAL)
             {
-                if (player->GetLevel() >= 20 && !player->HasAura(SPELL_DRUID_THICK_HIDE))
+                if (player->GetLevel() >= 20 && !player->HasAura(EraKnown(player, SPELL_DRUID_THICK_HIDE)))
                     nonCombatEngine->addStrategy("dps assist", false);
                 else
                     nonCombatEngine->addStrategiesNoInit("tank assist", "pull", nullptr);
@@ -561,15 +585,27 @@ void AiFactory::AddDefaultNonCombatStrategies(Player* player, PlayerbotAI* const
                 nonCombatEngine->addStrategy("dps assist", false);
             break;
         case CLASS_WARLOCK:
+        {
+            // mod-era-talents (patch 0020): Vanilla-era stones are relic-slot EQUIPPABLES —
+            // the bag-use spellstone/firestone strategies can't operate them (the item-use
+            // packet is rejected unequipped -> a per-tick "Cannot find the item" spam loop).
+            // An era-managed bot skips the stone strategy; everything else is unchanged.
+            uint32 eraTabs[3] = {0, 0, 0};
+            extern bool EraTalentBots_SpecTabs(Player* bot, uint32* tabs3);
+            bool eraManaged = EraTalentBots_SpecTabs(player, eraTabs);
             if (tab == WARLOCK_TAB_AFFLICTION)
-                nonCombatEngine->addStrategiesNoInit("felhunter", "spellstone", nullptr);
+                eraManaged ? nonCombatEngine->addStrategiesNoInit("felhunter", nullptr)
+                           : nonCombatEngine->addStrategiesNoInit("felhunter", "spellstone", nullptr);
             else if (tab == WARLOCK_TAB_DEMONOLOGY)
-                nonCombatEngine->addStrategiesNoInit("felguard", "spellstone", nullptr);
+                eraManaged ? nonCombatEngine->addStrategiesNoInit("felguard", nullptr)
+                           : nonCombatEngine->addStrategiesNoInit("felguard", "spellstone", nullptr);
             else if (tab == WARLOCK_TAB_DESTRUCTION)
-                nonCombatEngine->addStrategiesNoInit("imp", "firestone", nullptr);
+                eraManaged ? nonCombatEngine->addStrategiesNoInit("imp", nullptr)
+                           : nonCombatEngine->addStrategiesNoInit("imp", "firestone", nullptr);
 
             nonCombatEngine->addStrategiesNoInit("dps assist", "ss self", nullptr);
             break;
+        }
         case CLASS_DEATH_KNIGHT:
             if (tab == DEATH_KNIGHT_TAB_BLOOD)
                 nonCombatEngine->addStrategiesNoInit("tank assist", "pull", nullptr);

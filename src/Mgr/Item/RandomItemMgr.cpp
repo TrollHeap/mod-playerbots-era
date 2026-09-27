@@ -998,7 +998,33 @@ uint32 RandomItemMgr::GetRandomPotion(uint32 level, uint32 effect) const
     if (effectItr == levelItr->second.end() || effectItr->second.empty())
         return 0;
 
-    return Acore::Containers::SelectRandomContainerElement(effectItr->second);
+    std::vector<uint32> const& potions = effectItr->second;
+    if (!sPlayerbotAIConfig.limitGearExpansion)
+        return Acore::Containers::SelectRandomContainerElement(potions);
+
+    // mod-era-talents (patch 0020): the potionCache is keyed on RequiredLevel only, so
+    // TBC/WotLK potions reach lower-era bots (the reported Super Mana Potion 22832 leak: entry
+    // 22832 sits BELOW the TBC gear id-threshold, req 55). Consumables gate on a per-band
+    // RequiredLevel ceiling (Vanilla simple potions cap at Major Mana req 49; TBC ~req 62-68),
+    // UNIONed with the id-threshold as a backstop — the same rule as InitConsumables/InitFood.
+    uint32 maxEntryId, maxReqLevel;
+    if (level <= 60)      { maxEntryId = 23728; maxReqLevel = 49; }  // Vanilla band
+    else if (level <= 70) { maxEntryId = 35570; maxReqLevel = 69; }  // TBC band
+    else                  { return Acore::Containers::SelectRandomContainerElement(potions); }
+    std::vector<uint32> legal;
+    legal.reserve(potions.size());
+    for (uint32 entry : potions)
+    {
+        if (entry >= maxEntryId)
+            continue;
+        ItemTemplate const* proto = sObjectMgr->GetItemTemplate(entry);
+        if (!proto || proto->RequiredLevel > maxReqLevel)
+            continue;
+        legal.push_back(entry);
+    }
+    if (legal.empty())
+        return 0;
+    return Acore::Containers::SelectRandomContainerElement(legal);
 }
 
 uint32 RandomItemMgr::GetRandomFood(uint32 level, uint32 category) const

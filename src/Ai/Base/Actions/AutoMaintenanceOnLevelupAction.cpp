@@ -75,12 +75,20 @@ void AutoMaintenanceOnLevelupAction::LearnSpells(std::ostringstream* out)
         LearnQuestSpells(out);
 }
 
+// mod-era-talents (patch 0020): post-trainer-walk fixup — see the extern's comment in
+// PlayerbotFactory.cpp. InitAvailableSpells() is gated on CLASS ONLY (no faction, no trainer
+// ReqLevel), and THIS caller is an AI-tick action that runs AFTER the whole factory pass, so it is
+// the last thing to re-teach both TBC paladin faction seals and any above-level trainer spell to a
+// re-levelled bot. Without the call here the module's strips are silently undone.
+extern void EraTalentBots_PostTrainerWalk(Player* bot);
+
 void AutoMaintenanceOnLevelupAction::LearnTrainerSpells(std::ostringstream* /*out*/)
 {
     PlayerbotFactory factory(bot, bot->GetLevel());
     factory.InitSkills();
     factory.InitClassSpells();
     factory.InitAvailableSpells();
+    EraTalentBots_PostTrainerWalk(bot);
     factory.InitPet();
 }
 
