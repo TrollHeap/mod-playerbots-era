@@ -409,6 +409,8 @@ public:
     uint32 GetCityResidentZone();
     bool TryCityResidence();
     void ReleaseCityResidence(bool playerRequest = false);
+    uint32 GetCityResidenceRecord();
+    bool DoCityResidentAction(bool minimal);
     virtual bool DoSpecificAction(std::string const name, Event event = Event(), bool silent = false,
                                   std::string const qualifier = "");
     void ChangeStrategy(std::string const name, BotState type);
