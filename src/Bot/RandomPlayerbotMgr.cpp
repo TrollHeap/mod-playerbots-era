@@ -3082,9 +3082,11 @@ std::string const RandomPlayerbotMgr::HandleRemoteCommand(std::string const requ
     ObjectGuid guid = ObjectGuid::Create<HighGuid::Player>(atoi(std::string(pos + 1, request.end()).c_str()));
     Player* bot = GetPlayerBot(guid);
     if (!bot)
+        bot = ObjectAccessor::FindConnectedPlayer(guid);
+    if (!bot)
         return "invalid guid";
 
-    PlayerbotAI* botAI = GET_PLAYERBOT_AI(bot);
+    PlayerbotAI* botAI = sPlayerbotsMgr.GetPlayerbotAI(bot);
     if (!botAI)
         return "invalid guid";
 

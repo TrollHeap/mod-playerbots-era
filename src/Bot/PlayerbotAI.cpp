@@ -20,6 +20,7 @@
 #include "ExternalEventHelper.h"
 #include "GameObjectData.h"
 #include "GameTime.h"
+#include "Group.h"
 #include "GuildMgr.h"
 #include "LFGMgr.h"
 #include "LastMovementValue.h"
@@ -5216,6 +5217,13 @@ std::string const PlayerbotAI::HandleRemoteCommand(std::string const command)
             default:
                 return "unknown";
         }
+    }
+    else if (command == "group")
+    {
+        if (Group* group = bot->GetGroup())
+            return std::to_string(group->GetMembersCount());
+
+        return "0";
     }
     else if (command == "position")
     {
