@@ -14,6 +14,7 @@
 #include "Map.h"
 #include "MotionMaster.h"
 #include "MoveSplineInitArgs.h"
+#include "MoveSplineInit.h"
 #include "MovementGenerator.h"
 #include "ObjectDefines.h"
 #include "ObjectGuid.h"
@@ -181,6 +182,31 @@ bool MovementAction::MoveTo(uint32 mapId, float x, float y, float z, bool /*idle
     if (IsWaitingForLastMove(priority))
     {
         return false;
+    }
+
+    if (uint32 zone = botAI->GetCityResidentZone())
+    {
+        if (mapId != bot->GetMapId() || bot->GetMap()->GetZoneId(bot->GetPhaseMask(), x, y, z) != zone)
+            return false;
+        PathGenerator path(bot);
+        if (!path.CalculatePath(x, y, z) || path.GetPathType() != PATHFIND_NORMAL || path.GetPath().empty())
+            return false;
+        for (auto const& point : path.GetPath())
+            if (bot->GetMap()->GetZoneId(bot->GetPhaseMask(), point.x, point.y, point.z) != zone)
+                return false;
+        // Launch exactly the checked native path, not a second generated route.
+        bot->GetMotionMaster()->Clear();
+        bot->SetStandState(UNIT_STAND_STATE_STAND);
+        Movement::MoveSplineInit init(bot);
+        init.MovebyPath(path.GetPath());
+        init.SetWalk(sPlayerbotAIConfig.randombotsWalkingRPG ||
+            (sPlayerbotAIConfig.randombotsWalkingRPGInDoors && !bot->IsOutdoors()));
+        int32 duration = init.Launch();
+        if (duration <= 0)
+            return false;
+        AI_VALUE(LastMovement&, "last movement").Set(mapId, x, y, z, bot->GetOrientation(),
+            std::min(uint32(duration), sPlayerbotAIConfig.maxWaitForMove), priority);
+        return true;
     }
 
     bool generatePath = !bot->IsFlying() && !bot->isSwimming();

@@ -24,6 +24,7 @@
 #include "Util.h"
 #include "WorldPacket.h"
 #include <stack>
+#include <atomic>
 
 class AiObjectContext;
 class Creature;
@@ -404,6 +405,10 @@ public:
     void ChangeEngineOnCombat();
     void ChangeEngineOnNonCombat();
     void DoNextAction(bool minimal = false);
+    bool CanBeCityResident();
+    uint32 GetCityResidentZone();
+    bool TryCityResidence();
+    void ReleaseCityResidence(bool playerRequest = false);
     virtual bool DoSpecificAction(std::string const name, Event event = Event(), bool silent = false,
                                   std::string const qualifier = "");
     void ChangeStrategy(std::string const name, BotState type);
@@ -603,6 +608,7 @@ public:
     static bool IsHealingSpell(uint32 spellFamilyName, flag96 spellFamilyFlags);
     static SpellFamilyNames Class2SpellFamilyName(uint8 cls);
     NewRpgInfo rpgInfo;
+    std::atomic_bool cityResidenceReleased{false};
     NewRpgStatistic rpgStatistic;
     std::unordered_set<uint32> lowPriorityQuest;
     time_t bgReleaseAttemptTime = 0;

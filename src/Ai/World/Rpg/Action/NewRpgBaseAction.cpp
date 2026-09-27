@@ -710,6 +710,16 @@ bool NewRpgBaseAction::SearchQuestGiverAndAcceptOrReward()
 ObjectGuid NewRpgBaseAction::ChooseNpcOrGameObjectToInteract(bool questgiverOnly, float distanceLimit)
 {
     GuidVector possibleTargets = AI_VALUE(GuidVector, "possible new rpg targets");
+    if (uint32 zone = botAI->GetCityResidentZone())
+    {
+        std::erase_if(possibleTargets, [&](ObjectGuid const& guid)
+        {
+            WorldObject* object = ObjectAccessor::GetWorldObject(*bot, guid);
+            return !object || !object->IsInWorld() || object->GetZoneId() != zone ||
+                (distanceLimit && bot->GetDistance(object) > distanceLimit);
+        });
+        return possibleTargets.empty() ? ObjectGuid() : possibleTargets[urand(0, possibleTargets.size() - 1)];
+    }
     GuidVector possibleGameObjects = AI_VALUE(GuidVector, "possible new rpg game objects");
 
     if (possibleTargets.empty() && possibleGameObjects.empty())

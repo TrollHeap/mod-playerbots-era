@@ -235,6 +235,12 @@ bool NewRpgStatusUpdateAction::Execute(Event /*event*/)
 {
     NewRpgInfo& info = botAI->rpgInfo;
     NewRpgStatus status = info.GetStatus();
+    if (botAI->GetCityResidentZone() && status != RPG_REST && status != RPG_WANDER_NPC)
+    {
+        if (!RandomChangeStatus({RPG_WANDER_NPC, RPG_REST}))
+            info.ChangeToRest();
+        return true;
+    }
     switch (status)
     {
         case RPG_IDLE:
@@ -374,7 +380,8 @@ bool NewRpgWanderRandomAction::Execute(Event /*event*/)
 
 bool NewRpgWanderNpcAction::Execute(Event /*event*/)
 {
-    if (SearchQuestGiverAndAcceptOrReward())
+    // Era city residents stay out of quest handling; normal RPG bots keep the upstream quest pass.
+    if (!botAI->GetCityResidentZone() && SearchQuestGiverAndAcceptOrReward())
         return true;
 
     NewRpgInfo& info = botAI->rpgInfo;
@@ -397,12 +404,18 @@ bool NewRpgWanderNpcAction::Execute(Event /*event*/)
     }
 
     WorldObject* object = ObjectAccessor::GetWorldObject(*bot, data.npcOrGo);
+    uint32 residentZone = botAI->GetCityResidentZone();
+    if (residentZone && (!object || object->GetZoneId() != residentZone))
+    {
+        info.ChangeToIdle();
+        return true;
+    }
     if (object && IsWithinInteractionDist(object))
     {
         if (!data.lastReach)
         {
             data.lastReach = getMSTime();
-            if (bot->CanInteractWithQuestGiver(object))
+            if (!botAI->GetCityResidentZone() && bot->CanInteractWithQuestGiver(object))
                 InteractWithNpcOrGameObjectForQuest(data.npcOrGo);
             return true;
         }

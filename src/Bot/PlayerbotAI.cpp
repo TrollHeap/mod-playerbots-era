@@ -43,6 +43,7 @@
 #include "PositionValue.h"
 #include "RBAC.h"
 #include "RandomPlayerbotMgr.h"
+#include "EraCityResidents.h"
 #include "SayAction.h"
 #include "ScriptMgr.h"
 #include "ServerFacade.h"
@@ -229,8 +230,63 @@ PlayerbotAI::PlayerbotAI(Player* bot)
     botOutgoingPacketHandlers.AddHandler(SMSG_QUEST_CONFIRM_ACCEPT, "confirm quest");
 }
 
+namespace
+{
+    EraCityResidents cityResidents;
+}
+
+bool PlayerbotAI::CanBeCityResident()
+{
+    return sPlayerbotAIConfig.eraCityResidents && sPlayerbotAIConfig.enableNewRpgStrategy &&
+        bot && bot->GetSession() && bot->IsInWorld() && bot->IsAlive() && !IsSelfBot(bot) &&
+        !bot->GetSession()->IsLoggingOut() && !bot->IsDuringRemoveFromWorld() &&
+        !GetMaster() && !bot->GetGroup() && !bot->GetGroupInvite() && !bot->IsInCombat() &&
+        !bot->duel && !bot->GetTrader() && !bot->IsBeingTeleported() && !bot->IsInFlight() &&
+        !bot->GetTransport() && !bot->GetVehicle() && !bot->IsRooted() &&
+        !bot->InBattleground() && !bot->InArena() && !bot->InBattlegroundQueue() &&
+        bot->GetLevel() >= 10 && bot->GetLevel() <= 60 &&
+        sPlayerbotAIConfig.IsInRandomAccountList(bot->GetSession()->GetAccountId());
+}
+
+void PlayerbotAI::ReleaseCityResidence(bool playerRequest)
+{
+    if (bot)
+        cityResidents.Release(bot->GetGUID().GetCounter());
+    if (playerRequest)
+        cityResidenceReleased = true;
+}
+
+uint32 PlayerbotAI::GetCityResidentZone()
+{
+    if (!bot)
+        return 0;
+    uint32 zone = cityResidents.Zone(bot->GetGUID().GetCounter());
+    if (zone && (!CanBeCityResident() || bot->GetZoneId() != zone))
+    {
+        ReleaseCityResidence();
+        return 0;
+    }
+    return zone;
+}
+
+bool PlayerbotAI::TryCityResidence()
+{
+    if (GetCityResidentZone())
+        return true;
+    if (cityResidenceReleased || !CanBeCityResident())
+        return false;
+    if (!cityResidents.Assign(bot->GetGUID().GetCounter(), bot->GetZoneId(), bot->GetTeamId()))
+        return false;
+    // Recruit an existing visitor; no teleport, homebind or progression mutation.
+    bot->GetMotionMaster()->Clear();
+    bot->StopMoving();
+    rpgInfo.ChangeToIdle();
+    return true;
+}
+
 PlayerbotAI::~PlayerbotAI()
 {
+    ReleaseCityResidence();
     for (uint8 i = 0; i < BOT_STATE_MAX; i++)
     {
         if (engines[i])
@@ -682,6 +738,8 @@ void PlayerbotAI::HandleCommand(uint32 type, std::string const& text, Player& fr
                                       &fromPlayer))
         return;
 
+    ReleaseCityResidence(true);
+
     if (type == CHAT_MSG_RAID_WARNING && filtered.find(bot->GetName()) != std::string::npos &&
         filtered.find("award") == std::string::npos)
     {
@@ -1021,6 +1079,8 @@ void PlayerbotAI::HandleCommand(uint32 type, std::string const text, Player* fro
     if (!IsAllowedCommand(filtered) &&
         (!GetSecurity()->CheckLevelFor(PLAYERBOT_SECURITY_ALLOW_ALL, type != CHAT_MSG_WHISPER, fromPlayer)))
         return;
+
+    ReleaseCityResidence(true);
 
     if (type == CHAT_MSG_RAID_WARNING && filtered.find(bot->GetName()) != std::string::npos &&
         filtered.find("award") == std::string::npos)
@@ -1536,6 +1596,19 @@ void PlayerbotAI::DoNextAction(bool min)
     }
 
     bool minimal = !this->AllowActivity();
+
+    if (TryCityResidence())
+    {
+        if (!minimal && !min)
+        {
+            DoSpecificAction("new rpg status update", Event(), true);
+            if (rpgInfo.GetStatus() == RPG_WANDER_NPC)
+                DoSpecificAction("new rpg wander npc", Event(), true);
+        }
+        if (nextAICheckDelay < sPlayerbotAIConfig.globalCoolDown)
+            SetNextCheckDelay(sPlayerbotAIConfig.globalCoolDown);
+        return;
+    }
 
     currentEngine->DoNextAction(nullptr, 0, (minimal || min));
 
@@ -5204,6 +5277,9 @@ void PlayerbotAI::_fillGearScoreData(Player* player, Item* item, std::vector<uin
 
 std::string const PlayerbotAI::HandleRemoteCommand(std::string const command)
 {
+    if (command == "residence")
+        return std::to_string(cityResidents.Zone(bot->GetGUID().GetCounter()));
+
     if (command == "state")
     {
         switch (currentState)

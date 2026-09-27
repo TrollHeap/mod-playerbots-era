@@ -1462,6 +1462,9 @@ bool RandomPlayerbotMgr::ProcessBot(Player* bot)
     if (!botAI)
         return false;
 
+    if (botAI->GetCityResidentZone())
+        return false;
+
     if (bot->InBattleground())
         return false;
 
@@ -1589,6 +1592,8 @@ void RandomPlayerbotMgr::Revive(Player* player)
 
 void RandomPlayerbotMgr::RandomTeleport(Player* bot, std::vector<WorldLocation>& locs, bool hearth)
 {
+    if (PlayerbotAI* ai = GET_PLAYERBOT_AI(bot); ai && ai->GetCityResidentZone())
+        return;
     // ignore when alrdy teleported or not in the world yet.
     if (bot->IsBeingTeleported() || !bot->IsInWorld())
         return;
