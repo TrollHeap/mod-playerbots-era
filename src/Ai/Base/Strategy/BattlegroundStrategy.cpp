@@ -26,8 +26,10 @@ void BattlegroundStrategy::InitTriggers(std::vector<TriggerNode*>& triggers)
 
 void WarsongStrategy::InitTriggers(std::vector<TriggerNode*>& triggers)
 {
+    triggers.push_back(new TriggerNode("bg active", { NextAction("bg regroup", ACTION_RAID + 2.0f)}));
     triggers.push_back(new TriggerNode("bg active", { NextAction("bg check flag", ACTION_EMERGENCY )}));
     triggers.push_back(new TriggerNode("enemy flagcarrier near", { NextAction("attack enemy flag carrier", ACTION_RAID + 1.0f)}));
+    triggers.push_back(new TriggerNode("enemy player near", { NextAction("attack enemy player", ACTION_NORMAL)}));
     triggers.push_back(new TriggerNode("team flagcarrier near", { NextAction("bg protect fc", ACTION_RAID)}));
     triggers.push_back(new TriggerNode("often", { NextAction("bg use buff", ACTION_BG)}));
     triggers.push_back(new TriggerNode("low health", { NextAction("bg use buff", ACTION_MOVE)}));

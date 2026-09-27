@@ -15,6 +15,7 @@
 #include "PlayerbotAI.h"
 #include "PlayerbotAIConfig.h"
 #include "Playerbots.h"
+#include "RandomPlayerbotMgr.h"
 #include "ServerFacade.h"
 #include "SpellAuraEffects.h"
 
@@ -63,6 +64,13 @@ MountData CollectMountData(Player const* bot)
 
 bool CheckMountStateAction::Execute(Event /*event*/)
 {
+    if (BGTactics::IsWsgStartingArea(bot))
+    {
+        if (!bot->IsMounted())
+            return false;
+        Dismount();
+        return true;
+    }
     // Forced flight dismount:
     // Bots get stale flight movement flags after a forced dismount (e.g: Dalaran) because the post landing dismount cleanup
     // needs MSG_MOVE_FALL_LAND (a client opcode) and client movement packets. The stale flags cause the bot to be stuck with
@@ -88,12 +96,15 @@ bool CheckMountStateAction::Execute(Event /*event*/)
     Unit* currentTarget = AI_VALUE(Unit*, "current target");
     if (currentTarget)
     {
-        float dismountDistance = CalculateDismountDistance();
+        float dismountDistance = CalculateDismountDistance(bot);
         float mountDistance = CalculateMountDistance();
         float combatReach = bot->GetCombatReach() + currentTarget->GetCombatReach();
         float distanceToTarget = bot->GetExactDist(currentTarget);
 
         shouldDismount = (distanceToTarget <= dismountDistance + combatReach);
+        if (bot->GetMapId() == 489)
+            shouldDismount = shouldDismount && bot->GetVictim() == currentTarget &&
+                             bot->IsWithinLOSInMap(currentTarget);
         shouldMount = (distanceToTarget > mountDistance + combatReach);
     }
     else
@@ -111,6 +122,7 @@ bool CheckMountStateAction::Execute(Event /*event*/)
     if (shouldDismount && bot->IsMounted())
     {
         Dismount();
+        sRandomPlayerbotMgr.RecordWsgBotEvent(bot, "dismount", "active_attack");
         return true;
     }
 
@@ -149,6 +161,8 @@ bool CheckMountStateAction::Execute(Event /*event*/)
 
 bool CheckMountStateAction::isUseful()
 {
+    if (BGTactics::IsWsgStartingArea(bot))
+        return bot->IsMounted();
     // Not useful when:
     if (botAI->IsInVehicle() || bot->isDead() || bot->HasUnitState(UNIT_STATE_IN_FLIGHT) ||
         !bot->IsOutdoors() || bot->InArena())
@@ -446,7 +460,7 @@ bool CheckMountStateAction::TryRandomMountFiltered(std::map<int32, std::vector<u
     return false;
 }
 
-float CheckMountStateAction::CalculateDismountDistance() const
+float CheckMountStateAction::CalculateDismountDistance(Player* bot)
 {
     // Warrior bots should dismount far enough to charge (because it's important for generating some initial rage),
     // a real player would be riding toward enemy mashing the charge key but the bots won't cast charge while mounted.

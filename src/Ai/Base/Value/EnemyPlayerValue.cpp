@@ -5,10 +5,102 @@
  */
 
 #include "EnemyPlayerValue.h"
+#include "BattlegroundWS.h"
 #include "CombatManager.h"
+#include "GameTime.h"
 #include "Playerbots.h"
 #include "ServerFacade.h"
 #include "Vehicle.h"
+
+namespace
+{
+constexpr uint32 WSG_TARGET_LOCK_MS = 5 * IN_MILLISECONDS;
+
+bool IsWsgCasterOrHealer(Player const* player)
+{
+    switch (player->getClass())
+    {
+        case CLASS_DRUID:
+        case CLASS_MAGE:
+        case CLASS_PALADIN:
+        case CLASS_PRIEST:
+        case CLASS_SHAMAN:
+        case CLASS_WARLOCK:
+            return true;
+        default:
+            return false;
+    }
+}
+}
+
+Unit* EnemyPlayerValue::SelectWsgTarget()
+{
+    Battleground* bg = bot->GetBattleground();
+    if (!bg || bg->GetBgTypeID() != BATTLEGROUND_WS || bg->GetStatus() != STATUS_IN_PROGRESS)
+        return nullptr;
+
+    auto isCandidate = [&](Unit* unit)
+    {
+        return unit && unit->IsPlayer() && unit->IsAlive() && botAI->IsOpposing(unit->ToPlayer()) &&
+               bot->IsWithinDistInMap(unit, 40.0f) && bot->IsWithinLOSInMap(unit);
+    };
+    auto const now = GameTime::GetGameTimeMS().count();
+    auto find = [&](ObjectGuid guid) -> Unit*
+    {
+        Unit* unit = botAI->GetUnit(guid);
+        return isCandidate(unit) ? unit : nullptr;
+    };
+
+    auto* ws = static_cast<BattlegroundWS*>(bg);
+    Unit* enemyCarrier = find(ws->GetFlagPickerGUID(bot->GetTeamId()));
+    Unit* teamCarrier = botAI->GetUnit(ws->GetFlagPickerGUID(bg->GetOtherTeamId(bot->GetTeamId())));
+    if (enemyCarrier)
+    {
+        lockedTarget = ObjectGuid::Empty;
+        return enemyCarrier;
+    }
+
+    Unit* locked = now < lockedTargetUntil ? find(lockedTarget) : nullptr;
+    if (locked && teamCarrier && locked->IsInCombatWith(teamCarrier))
+        return locked;
+
+    GuidVector const players = AI_VALUE(GuidVector, "nearest enemy players");
+    for (ObjectGuid const guid : players)
+    {
+        Unit* candidate = find(guid);
+        if (candidate && teamCarrier && candidate->IsInCombatWith(teamCarrier))
+        {
+            lockedTarget = candidate->GetGUID();
+            lockedTargetUntil = now + WSG_TARGET_LOCK_MS;
+            return candidate;
+        }
+    }
+
+    if (locked)
+        return locked;
+
+    for (ObjectGuid const guid : players)
+    {
+        Unit* candidate = find(guid);
+        if (candidate && IsWsgCasterOrHealer(candidate->ToPlayer()))
+        {
+            lockedTarget = candidate->GetGUID();
+            lockedTargetUntil = now + WSG_TARGET_LOCK_MS;
+            return candidate;
+        }
+    }
+
+    for (ObjectGuid const guid : players)
+        if (Unit* candidate = find(guid))
+        {
+            lockedTarget = candidate->GetGUID();
+            lockedTargetUntil = now + WSG_TARGET_LOCK_MS;
+            return candidate;
+        }
+
+    lockedTarget = ObjectGuid::Empty;
+    return nullptr;
+}
 
 bool NearestEnemyPlayersValue::AcceptUnit(Unit* unit)
 {
@@ -38,6 +130,9 @@ bool NearestEnemyPlayersValue::AcceptUnit(Unit* unit)
 
 Unit* EnemyPlayerValue::Calculate()
 {
+    if (Unit* target = SelectWsgTarget())
+        return target;
+
     bool controllingCannon = false;
     bool controllingVehicle = false;
     if (Vehicle* vehicle = bot->GetVehicle())

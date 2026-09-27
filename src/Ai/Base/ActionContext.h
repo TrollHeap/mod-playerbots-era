@@ -220,6 +220,7 @@ public:
         creators["bg move to start"] = &ActionContext::bg_move_to_start;
         creators["bg reset objective force"] = &ActionContext::bg_reset_objective_force;
         creators["bg move to objective"] = &ActionContext::bg_move_to_objective;
+        creators["bg regroup"] = &ActionContext::bg_regroup;
         creators["bg select objective"] = &ActionContext::bg_select_objective;
         creators["bg check objective"] = &ActionContext::bg_check_objective;
         creators["bg attack fc"] = &ActionContext::bg_attack_fc;
@@ -426,6 +427,7 @@ private:
     static Action* bg_move_to_start(PlayerbotAI* botAI) { return new BGTactics(botAI, "move to start"); }
     static Action* bg_reset_objective_force(PlayerbotAI* botAI) { return new BGTactics(botAI, "reset objective force"); }
     static Action* bg_move_to_objective(PlayerbotAI* botAI) { return new BGTactics(botAI, "move to objective"); }
+    static Action* bg_regroup(PlayerbotAI* botAI) { return new BGTactics(botAI, "regroup"); }
     static Action* bg_select_objective(PlayerbotAI* botAI) { return new BGTactics(botAI, "select objective"); }
     static Action* bg_check_objective(PlayerbotAI* botAI) { return new BGTactics(botAI, "check objective"); }
     static Action* bg_attack_fc(PlayerbotAI* botAI) { return new BGTactics(botAI, "attack fc"); }

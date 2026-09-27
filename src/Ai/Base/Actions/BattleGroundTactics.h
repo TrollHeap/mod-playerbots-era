@@ -108,6 +108,19 @@ class BGTactics : public MovementAction
 public:
     static bool HandleConsoleCommand(ChatHandler* handler, char const* args);
     uint8 static GetBotStrategyForTeam(Battleground* bg, TeamId teamId);
+    static uint32 GetWsgDefenderCount(Battleground* bg, TeamId team);
+    static int32 GetWsgEscortSlot(Player* player, Unit* carrier);
+    static bool GetWsgGraveyardCamp(Player* player, Position& camp);
+    static bool IsWsgStartingArea(Player* player);
+    struct WsgNearbyPlayers
+    {
+        uint32 allyCount = 1;
+        uint32 enemyCount = 0;
+        Player* closestAlly = nullptr;
+        Player* closestEnemy = nullptr;
+    };
+    static WsgNearbyPlayers GetWsgNearbyPlayers(Player* bot);
+    static bool RegroupWsg(PlayerbotAI* ai, bool beforeAttack = false);
 
     BGTactics(PlayerbotAI* botAI, std::string const name = "bg tactics") : MovementAction(botAI, name) {}
 
@@ -118,6 +131,8 @@ private:
     bool moveToStart(bool force = false);
     bool selectObjective(bool reset = false);
     bool moveToObjective(bool ignoreDist);
+    enum class WsgRouteResult { Unavailable, Moved, Interrupted };
+    WsgRouteResult followWsgRoute();
     bool selectObjectiveWp(std::vector<BattleBotPath*> const& vPaths);
     bool moveToObjectiveWp(BattleBotPath* const& currentPath, uint32 currentPoint, bool reverse = false);
     bool startNewPathBegin(std::vector<BattleBotPath*> const& vPaths);
@@ -129,9 +144,16 @@ private:
     bool flagTaken();
     bool teamFlagTaken();
     bool protectFC();
+    bool RegroupWsg(bool beforeAttack = false);
     bool useBuff();
     uint32 getPlayersInArea(TeamId teamId, Position point, float range, bool combat = true);
     bool IsLockedInsideKeep();
+
+    bool wsgRegrouping = false;
+    uint32 wsgRegroupInstance = 0;
+    uint32 wsgRouteSegment = 0;
+    uint32 wsgRoutePoint = 0;
+    uint32 wsgRouteInstance = 0;
 };
 
 class ArenaTactics : public MovementAction

@@ -5,12 +5,22 @@
  */
 
 #include "ReachTargetActions.h"
+#include "BattleGroundTactics.h"
 #include "Event.h"
 #include "PlayerbotAIConfig.h"
 #include "Playerbots.h"
 #include "ServerFacade.h"
 
-bool ReachTargetAction::Execute(Event /*event*/) { return ReachCombatTo(AI_VALUE(Unit*, GetTargetName()), distance); }
+bool ReachTargetAction::Execute(Event /*event*/)
+{
+    Unit* target = AI_VALUE(Unit*, GetTargetName());
+    if (target && bot->GetMapId() == 489 && !bot->IsFriendlyTo(target) && BGTactics::RegroupWsg(botAI, true))
+        return true;
+    if (target && !bot->IsWithinLOSInMap(target))
+        return MoveToLOS(target, !botAI->IsMelee(bot));
+
+    return ReachCombatTo(target, distance);
+}
 
 bool ReachTargetAction::isUseful()
 {

@@ -37,7 +37,11 @@ public:
     Unit* Calculate() override;
 
 private:
+    Unit* SelectWsgTarget();
     float GetMaxAttackDistance();
+
+    ObjectGuid lockedTarget;
+    uint64 lockedTargetUntil = 0;
 };
 
 #endif

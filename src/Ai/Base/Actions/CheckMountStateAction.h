@@ -44,13 +44,13 @@ public:
 
     static void CompleteDismount(Player* bot);
     static void LoadPreferredMounts();
+    static float CalculateDismountDistance(Player* bot);
 
 private:
     Player* master;
     ShapeshiftForm masterInShapeshiftForm;
     ShapeshiftForm botInShapeshiftForm;
     static std::unordered_map<uint32, PreferredMountCache> mountCache;
-    float CalculateDismountDistance() const;
     float CalculateMountDistance() const;
     void Dismount();
     void ClearStaleFlightFlags();

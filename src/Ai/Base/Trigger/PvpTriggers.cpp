@@ -267,21 +267,10 @@ bool EnemyFlagCarrierNear::IsActive()
 
 bool TeamFlagCarrierNear::IsActive()
 {
-    if (bot->GetBattlegroundTypeId() == BATTLEGROUND_WS)
-    {
-        BattlegroundWS* bg = dynamic_cast<BattlegroundWS*>(bot->GetBattleground());
-        if (bg)
-        {
-            bool bothFlagsNotAtBase =
-                bg->GetFlagState(TEAM_ALLIANCE) != BG_WS_FLAG_STATE_ON_BASE &&
-                bg->GetFlagState(TEAM_HORDE) != BG_WS_FLAG_STATE_ON_BASE;
-
-            if (bothFlagsNotAtBase)
-                return false;
-        }
-    }
-
     Unit* carrier = AI_VALUE(Unit*, "team flag carrier");
+    if (bot->GetBattleground() && bot->GetBattleground()->GetMapId() == 489 &&
+        (bot->IsInCombat() || BGTactics::GetWsgEscortSlot(bot, carrier) < 0))
+        return false;
     return carrier && ServerFacade::instance().IsDistanceLessOrEqualThan(ServerFacade::instance().GetDistance2d(bot, carrier), 200.f);
 }
 

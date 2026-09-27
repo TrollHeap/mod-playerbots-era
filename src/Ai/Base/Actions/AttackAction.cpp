@@ -5,6 +5,8 @@
  */
 
 #include "AttackAction.h"
+#include "BattleGroundTactics.h"
+#include "CheckMountStateAction.h"
 #include "CreatureAI.h"
 #include "Event.h"
 #include "LastMovementValue.h"
@@ -12,6 +14,7 @@
 #include "PlayerbotAI.h"
 #include "PlayerbotTextMgr.h"
 #include "Playerbots.h"
+#include "RandomPlayerbotMgr.h"
 #include "ServerFacade.h"
 #include "Unit.h"
 #include "WaitForAttackStrategy.h"
@@ -121,8 +124,23 @@ bool AttackAction::Attack(Unit* target, bool /*with_pet*/ /*true*/)
         return false;
     }
 
+    if (bot->GetMapId() == 489 && target->IsPlayer())
+    {
+        if (BGTactics::RegroupWsg(botAI, true))
+            return true;
+        if (!bot->IsValidAttackTarget(target))
+            return false;
+        float distance = CheckMountStateAction::CalculateDismountDistance(bot);
+        if (bot->IsMounted() && bot->IsWithinLOSInMap(target) &&
+            bot->GetExactDist(target) > distance + bot->GetCombatReach() + target->GetCombatReach())
+            return MoveNear(target, distance);
+    }
+
     if (!bot->IsWithinLOSInMap(target))
     {
+        if (MoveToLOS(target, !botAI->IsMelee(bot)))
+            return true;
+
         if (verbose)
             botAI->TellError(PlayerbotTextMgr::instance().GetBotTextOrDefault(
                 "attack_target_not_in_sight_error",
@@ -189,6 +207,15 @@ bool AttackAction::Attack(Unit* target, bool /*with_pet*/ /*true*/)
     if (botAI->CanMove() && !bot->HasInArc(CAST_ANGLE_IN_FRONT, target))
         ServerFacade::instance().SetFacingTo(bot, target);
 
+    if (bot->IsMounted() && target->IsPlayer() && bot->GetMapId() == 489 && target->GetMapId() == bot->GetMapId())
+    {
+        WorldPacket emptyPacket;
+        bot->GetSession()->HandleCancelMountAuraOpcode(emptyPacket);
+        sRandomPlayerbotMgr.RecordWsgBotEvent(bot, "dismount", "offensive_commit");
+    }
+
+    if (!inCombat || oldTarget != target)
+        sRandomPlayerbotMgr.RecordWsgBotEvent(bot, "engagement", "attack_selected");
     botAI->ChangeEngine(BOT_STATE_COMBAT);
 
     if (!WaitForAttackStrategy::ShouldWait(botAI))
