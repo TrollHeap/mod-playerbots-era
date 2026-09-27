@@ -38,6 +38,7 @@ public:
     Unit* Calculate() override;
 
 private:
+    // Era: defined in era-core (EraWsgTarget.cpp).
     Unit* SelectWsgTarget();
     Unit* SelectWsgTargetLegacy();
     float GetMaxAttackDistance();

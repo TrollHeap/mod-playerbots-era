@@ -13,6 +13,7 @@
 class ChatHandler;
 class Battleground;
 class PlayerbotAI;
+class PositionInfo;
 struct Position;
 
 #define SPELL_CAPTURE_BANNER 21651
@@ -108,6 +109,7 @@ class BGTactics : public MovementAction
 public:
     static bool HandleConsoleCommand(ChatHandler* handler, char const* args);
     uint8 static GetBotStrategyForTeam(Battleground* bg, TeamId teamId);
+    // Era: defined in era-core (EraWsgTactics.cpp).
     static uint32 GetWsgDefenderCount(Battleground* bg, TeamId team);
     static int32 GetWsgEscortSlot(Player* player, Unit* carrier);
     static bool GetWsgGraveyardCamp(Player* player, Position& camp);
@@ -131,8 +133,6 @@ private:
     bool moveToStart(bool force = false);
     bool selectObjective(bool reset = false);
     bool moveToObjective(bool ignoreDist);
-    enum class WsgRouteResult { Unavailable, Moved, Interrupted };
-    WsgRouteResult followWsgRoute();
     bool selectObjectiveWp(std::vector<BattleBotPath*> const& vPaths);
     bool moveToObjectiveWp(BattleBotPath* const& currentPath, uint32 currentPoint, bool reverse = false);
     bool startNewPathBegin(std::vector<BattleBotPath*> const& vPaths);
@@ -144,10 +144,19 @@ private:
     bool flagTaken();
     bool teamFlagTaken();
     bool protectFC();
-    bool RegroupWsg(bool beforeAttack = false);
     bool useBuff();
     uint32 getPlayersInArea(TeamId teamId, Position point, float range, bool combat = true);
     bool IsLockedInsideKeep();
+
+    // Era: Warsong tactics, defined in era-core (EraWsgTactics.cpp).
+    // Unavailable falls through to the native code; Moved and Interrupted end the action (true/false).
+    enum class WsgRouteResult { Unavailable, Moved, Interrupted };
+    WsgRouteResult followWsgRoute();
+    WsgRouteResult moveToWsgObjective();
+    WsgRouteResult holdWsgCamp(BattlegroundTypeId bgType, bool inCombat);
+    bool selectWsgObjective(PositionInfo& pos);
+    bool protectWsgFC(Unit* teamFC);
+    bool RegroupWsg(bool beforeAttack = false);
 
     bool wsgRegrouping = false;
     uint32 wsgRegroupInstance = 0;
