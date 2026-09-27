@@ -54,6 +54,15 @@ static std::vector<uint32> initSlotsOrder = {EQUIPMENT_SLOT_TRINKET1, EQUIPMENT_
     EQUIPMENT_SLOT_LEGS, EQUIPMENT_SLOT_HANDS, EQUIPMENT_SLOT_NECK, EQUIPMENT_SLOT_BODY, EQUIPMENT_SLOT_WAIST,
     EQUIPMENT_SLOT_FEET, EQUIPMENT_SLOT_WRISTS, EQUIPMENT_SLOT_FINGER1, EQUIPMENT_SLOT_FINGER2, EQUIPMENT_SLOT_BACK};
 
+bool PlayerbotFactory::HasMissingCoreGear() const
+{
+    for (uint8 slot : {EQUIPMENT_SLOT_SHOULDERS, EQUIPMENT_SLOT_CHEST, EQUIPMENT_SLOT_LEGS, EQUIPMENT_SLOT_FEET})
+        if (!bot->GetItemByPos(INVENTORY_SLOT_BAG_0, slot))
+            return true;
+
+    return false;
+}
+
 uint32 PlayerbotFactory::tradeSkills[] = {SKILL_ALCHEMY,         SKILL_ENCHANTING,   SKILL_SKINNING,
                                           SKILL_TAILORING,       SKILL_LEATHERWORKING, SKILL_ENGINEERING,
                                           SKILL_HERBALISM,       SKILL_INSCRIPTION,  SKILL_MINING,
@@ -949,7 +958,7 @@ void PlayerbotFactory::Randomize(bool incremental)
     pmo = sPerfMonitor.start(PERF_MON_RNDBOT, "PlayerbotFactory_Equip");
     LOG_DEBUG("playerbots", "Initializing equipmemt...");
     if (!incremental || !sPlayerbotAIConfig.equipAndSpecPersistence ||
-        bot->GetLevel() < sPlayerbotAIConfig.equipAndSpecPersistenceLevel)
+        bot->GetLevel() < sPlayerbotAIConfig.equipAndSpecPersistenceLevel || HasMissingCoreGear())
     {
         InitEquipment(incremental, incremental ? false : sPlayerbotAIConfig.twoRoundsGearInit);
     }
@@ -1761,7 +1770,7 @@ uint32 PlayerbotFactory::InitTalentsTree(bool increment /*false*/, bool use_temp
     // randomize AND mod-player-bot-level-brackets moves in both directions. Hard link-time
     // dependency on mod-era-talents (always built in this overlay, like roster->IP).
     extern bool EraTalentBots_FactoryReconcile(Player* bot, int specTab);
-    if (EraTalentBots_FactoryReconcile(bot, specTab == 3 ? 1 : int(specTab)))  // 3 = cat pseudo-spec -> feral tree
+    if (EraTalentBots_FactoryReconcile(bot, int(specTab)))
     {
         if (bot->getClass() == CLASS_SHAMAN && bot->HasSpell(SPELL_SHAMAN_DUAL_WIELD))
         {
@@ -2870,11 +2879,12 @@ void PlayerbotFactory::InitBags(bool destroyOld)
         if (!CanEquipUnseenItem(slot, dest, newItemId))
             continue;
 
-        if (old_bag && destroyOld)
-            bot->DestroyItem(INVENTORY_SLOT_BAG_0, slot, true);
-
         if (old_bag)
-            continue;
+        {
+            if (!destroyOld)
+                continue;
+            bot->DestroyItem(INVENTORY_SLOT_BAG_0, slot, true);
+        }
 
         bot->EquipNewItem(dest, newItemId, true);
         // if (newItem)
@@ -4233,6 +4243,10 @@ void PlayerbotFactory::InitFood()
     {
         return;
     }
+    uint32 minFoodLevel = bot->GetLevel() > 9 ? bot->GetLevel() - 9 : 0;
+    if (sPlayerbotAIConfig.limitGearExpansion && bot->GetLevel() <= 60)
+        minFoodLevel = std::min(minFoodLevel, 45u);
+
     std::unordered_map<uint32, std::vector<uint32>> items;
     ItemTemplateContainer const* itemTemplateContainer = sObjectMgr->GetItemTemplateStore();
     for (ItemTemplateContainer::const_iterator i = itemTemplateContainer->begin(); i != itemTemplateContainer->end();
@@ -4247,8 +4261,7 @@ void PlayerbotFactory::InitFood()
             (proto->Spells[0].SpellCategory != 11 && proto->Spells[0].SpellCategory != 59) || proto->Bonding != NO_BIND)
             continue;
 
-        if (proto->RequiredLevel > bot->GetLevel() ||
-            static_cast<int32>(proto->RequiredLevel) < static_cast<int32>(bot->GetLevel()) - 9)
+        if (proto->RequiredLevel > bot->GetLevel() || proto->RequiredLevel < minFoodLevel)
             continue;
 
         if (proto->RequiredSkill && !bot->HasSkill(proto->RequiredSkill))

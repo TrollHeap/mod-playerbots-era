@@ -77,6 +77,7 @@ public:
                                              Trainer::Spell const* trainerSpell);
     void InitClassSpells();
     void InitSpecialSpells();
+    bool HasMissingCoreGear() const;
     void InitEquipment(bool incremental, bool second_chance = false);
     void InitPet();
     void InitAmmo();

@@ -989,6 +989,9 @@ uint32 RandomItemMgr::GetAmmo(uint32 level, uint32 subClass) const
 uint32 RandomItemMgr::GetRandomPotion(uint32 level, uint32 effect) const
 {
     level = NormalizeLevel(level);
+    // Major Healing Potion requires 45; the cache retains it through 45 + 13 = 58.
+    if (sPlayerbotAIConfig.limitGearExpansion && level <= 60)
+        level = std::min(level, 58u);
 
     auto const levelItr = potionCache.find(level);
     if (levelItr == potionCache.end())

@@ -24,7 +24,7 @@ DEBUFF_ENEMY_TRIGGER(VampiricTouchOnAttackerTrigger, "vampiric touch on attacker
 class VampiricEmbraceTrigger : public BuffTrigger
 {
 public:
-    VampiricEmbraceTrigger(PlayerbotAI* botAI) : BuffTrigger(botAI, "vampiric embrace") {}
+    VampiricEmbraceTrigger(PlayerbotAI* botAI) : BuffTrigger(botAI, "vampiric embrace", 1, true) {}
     std::string const GetTargetName() override
     {
         extern uint32 EraTalentBots_ResolveSpellId(Player* bot, uint32 stockSpellId);

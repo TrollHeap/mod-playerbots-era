@@ -145,7 +145,7 @@ SPELL_ACTION(CastMindFlayAction, "mind flay");
 class CastVampiricEmbraceAction : public CastBuffSpellAction
 {
 public:
-    CastVampiricEmbraceAction(PlayerbotAI* botAI) : CastBuffSpellAction(botAI, "vampiric embrace") {}
+    CastVampiricEmbraceAction(PlayerbotAI* botAI) : CastBuffSpellAction(botAI, "vampiric embrace", true) {}
     std::string const GetTargetName() override
     {
         extern uint32 EraTalentBots_ResolveSpellId(Player* bot, uint32 stockSpellId);
