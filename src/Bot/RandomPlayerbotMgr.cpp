@@ -283,7 +283,8 @@ void RandomPlayerbotMgr::UpdateWsgHumanWatcher(uint32 elapsed)
     for (auto const& entry : ObjectAccessor::GetPlayers())
     {
         Player* player = entry.second;
-        if (!player || !player->IsInWorld())
+        // A GM observing the match is neither a human sample nor part of the bots' surroundings.
+        if (!player || !player->IsInWorld() || player->IsGameMaster())
             continue;
         Battleground* bg = player->GetBattleground();
         if (!IsWatchingWsgMatch(bg) || bg->GetStatus() != STATUS_IN_PROGRESS)
@@ -299,7 +300,7 @@ void RandomPlayerbotMgr::UpdateWsgHumanWatcher(uint32 elapsed)
         for (auto const& nearby : bg->GetBgMap()->GetPlayers())
         {
             Player* other = nearby.GetSource();
-            if (!other || other == player || !other->IsInWorld() || !other->IsAlive() ||
+            if (!other || other == player || !other->IsInWorld() || !other->IsAlive() || other->IsGameMaster() ||
                 !player->CanSeeOrDetect(other) || !player->IsWithinLOSInMap(other))
                 continue;
             float const distance = player->GetDistance(other);
@@ -365,7 +366,8 @@ void RandomPlayerbotMgr::UpdateWsgHumanWatcher(uint32 elapsed)
 
 void RandomPlayerbotMgr::RecordWsgHumanEvent(Player* player, char const* event, uint32 spellId, ObjectGuid targetGuid, uint32 amount)
 {
-    if (sPlayerbotAIConfig.wsgHumanWatcherDirectory.empty() || !player || !player->IsInWorld() || GET_PLAYERBOT_AI(player))
+    if (sPlayerbotAIConfig.wsgHumanWatcherDirectory.empty() || !player || !player->IsInWorld() ||
+        GET_PLAYERBOT_AI(player) || player->IsGameMaster())
         return;
 
     Battleground* bg = player->GetBattleground();
