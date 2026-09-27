@@ -13,7 +13,17 @@
 #include "Playerbots.h"
 #include "ServerFacade.h"
 
-bool EnemyPlayerNear::IsActive() { return AI_VALUE(Unit*, "enemy player target"); }
+bool EnemyPlayerNear::IsActive()
+{
+    if (bot->GetMapId() != 489)
+    {
+        uint32 const now = getMSTime();
+        if (lastOutsideWsgCheck && now - lastOutsideWsgCheck < 3000)
+            return false;
+        lastOutsideWsgCheck = now;
+    }
+    return AI_VALUE(Unit*, "enemy player target");
+}
 
 bool PlayerHasNoFlag::IsActive()
 {

@@ -14,9 +14,13 @@ class PlayerbotAI;
 class EnemyPlayerNear : public Trigger
 {
 public:
-    EnemyPlayerNear(PlayerbotAI* botAI) : Trigger(botAI, "enemy player near", 3) {}
+    // Era: every tick in Warsong for human-like reaction; elsewhere self-throttled to the former 3 s.
+    EnemyPlayerNear(PlayerbotAI* botAI) : Trigger(botAI, "enemy player near", 1) {}
 
     bool IsActive() override;
+
+private:
+    uint32 lastOutsideWsgCheck = 0;
 };
 
 class PlayerHasNoFlag : public Trigger

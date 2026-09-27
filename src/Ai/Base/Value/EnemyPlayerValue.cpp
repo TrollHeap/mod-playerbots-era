@@ -83,7 +83,7 @@ Unit* EnemyPlayerValue::SelectWsgTarget()
         auto const hitting = allies.find(guid.GetRawValue());
         candidates.push_back({guid.GetRawValue(), unit->GetHealthPct(), bot->GetDistance(unit),
                               hitting == allies.end() ? 0 : hitting->second,
-                              IsWsgCasterOrHealer(unit->ToPlayer()), threat});
+                              IsWsgCasterOrHealer(unit->ToPlayer()), threat, unit->GetVictim() == bot});
         units[guid.GetRawValue()] = unit;
     }
 
