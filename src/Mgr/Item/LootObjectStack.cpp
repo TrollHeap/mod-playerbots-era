@@ -15,23 +15,6 @@
 
 LootTarget::LootTarget(ObjectGuid guid) : guid(guid), asOfTime(time(nullptr)) {}
 
-LootTarget::LootTarget(LootTarget const& other)
-{
-    guid = other.guid;
-    asOfTime = other.asOfTime;
-}
-
-LootTarget& LootTarget::operator=(LootTarget const& other)
-{
-    if ((void*)this == (void*)&other)
-        return *this;
-
-    guid = other.guid;
-    asOfTime = other.asOfTime;
-
-    return *this;
-}
-
 bool LootTarget::operator<(LootTarget const& other) const { return guid < other.guid; }
 
 void LootTargetList::shrink(time_t fromTime)
@@ -267,14 +250,6 @@ WorldObject* LootObject::GetWorldObject(Player* bot)
         return go;
 
     return nullptr;
-}
-
-LootObject::LootObject(LootObject const& other)
-{
-    guid = other.guid;
-    skillId = other.skillId;
-    reqSkillValue = other.reqSkillValue;
-    reqItem = other.reqItem;
 }
 
 bool LootObject::IsLootPossible(Player* bot)

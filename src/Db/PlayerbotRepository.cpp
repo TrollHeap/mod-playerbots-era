@@ -64,12 +64,12 @@ void PlayerbotRepository::Save(PlayerbotAI* botAI)
         SaveValue(guid, "value", *i);
     }
 
-    SaveValue(guid, "co", FormatStrategies("co", botAI->GetStrategies(BOT_STATE_COMBAT)));
-    SaveValue(guid, "nc", FormatStrategies("nc", botAI->GetStrategies(BOT_STATE_NON_COMBAT)));
-    SaveValue(guid, "dead", FormatStrategies("dead", botAI->GetStrategies(BOT_STATE_DEAD)));
+    SaveValue(guid, "co", FormatStrategies(botAI->GetStrategies(BOT_STATE_COMBAT)));
+    SaveValue(guid, "nc", FormatStrategies(botAI->GetStrategies(BOT_STATE_NON_COMBAT)));
+    SaveValue(guid, "dead", FormatStrategies(botAI->GetStrategies(BOT_STATE_DEAD)));
 }
 
-std::string const PlayerbotRepository::FormatStrategies(std::string const /*type*/, std::vector<std::string> strategies)
+std::string const PlayerbotRepository::FormatStrategies(std::vector<std::string> strategies)
 {
     std::ostringstream out;
     for (std::vector<std::string>::iterator i = strategies.begin(); i != strategies.end(); ++i)

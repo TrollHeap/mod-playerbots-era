@@ -2693,19 +2693,11 @@ void RandomPlayerbotMgr::OnBotLoginInternal(Player* const bot)
 
 void RandomPlayerbotMgr::OnPlayerLogin(Player* player)
 {
-    uint32 botsNearby = 0;
-
     for (PlayerBotMap::const_iterator it = GetPlayerBotsBegin(); it != GetPlayerBotsEnd(); ++it)
     {
         Player* const bot = it->second;
         if (player == bot /* || GET_PLAYERBOT_AI(player)*/)  // TEST
             continue;
-
-        Cell playerCell(player->GetPositionX(), player->GetPositionY());
-        Cell botCell(bot->GetPositionX(), bot->GetPositionY());
-
-        // if (playerCell == botCell)
-        // botsNearby++;
 
         Group* group = bot->GetGroup();
         if (!group)
@@ -2728,47 +2720,6 @@ void RandomPlayerbotMgr::OnPlayerLogin(Player* player)
                 break;
             }
         }
-    }
-
-    if (botsNearby > 100 && false)
-    {
-        WorldPosition botPos(player);
-
-        // botPos.GetReachableRandomPointOnGround(player, sPlayerbotAIConfig.reactDistance * 2, true);
-
-        // player->TeleportTo(botPos);
-        // player->Relocate(botPos.coord_x, botPos.coord_y, botPos.coord_z, botPos.orientation);
-
-        if (!player->GetFactionTemplateEntry())
-        {
-            botPos.GetReachableRandomPointOnGround(player, sPlayerbotAIConfig.reactDistance * 2, true);
-        }
-        else
-        {
-            std::vector<TravelDestination*> dests = TravelMgr::instance().getRpgTravelDestinations(player, true, true, 200000.0f);
-
-            do
-            {
-                RpgTravelDestination* dest = (RpgTravelDestination*)dests[urand(0, dests.size() - 1)];
-                CreatureTemplate const* cInfo = dest->GetCreatureTemplate();
-                if (!cInfo)
-                    continue;
-
-                FactionTemplateEntry const* factionEntry = sFactionTemplateStore.LookupEntry(cInfo->faction);
-                ReputationRank reaction = Unit::GetFactionReactionTo(player->GetFactionTemplateEntry(), factionEntry);
-
-                if (reaction > REP_NEUTRAL && dest->nearestPoint(&botPos)->GetMapId() == player->GetMapId())
-                {
-                    botPos = *dest->nearestPoint(&botPos);
-                    break;
-                }
-            } while (true);
-        }
-
-        player->RemoveAurasWithInterruptFlags(AURA_INTERRUPT_FLAG_TELEPORTED | AURA_INTERRUPT_FLAG_CHANGE_MAP);
-        player->TeleportTo(botPos);
-
-        // player->Relocate(botPos.getX(), botPos.getY(), botPos.getZ(), botPos.getO());
     }
 
     if (IsRandomBot(player))

@@ -29,7 +29,7 @@ class LootObject
 public:
     LootObject() : skillId(0), reqSkillValue(0), reqItem(0) {}
     LootObject(Player* bot, ObjectGuid guid);
-    LootObject(LootObject const& other);
+    LootObject(LootObject const& other) = default;
     LootObject& operator=(LootObject const& other) = default;
 
     bool IsEmpty() { return !guid; }
@@ -50,10 +50,10 @@ class LootTarget
 {
 public:
     LootTarget(ObjectGuid guid);
-    LootTarget(LootTarget const& other);
+    LootTarget(LootTarget const& other) = default;
 
 public:
-    LootTarget& operator=(LootTarget const& other);
+    LootTarget& operator=(LootTarget const& other) = default;
     bool operator<(LootTarget const& other) const;
 
 public:
