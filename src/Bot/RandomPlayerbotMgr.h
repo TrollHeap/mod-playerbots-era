@@ -104,7 +104,8 @@ public:
     void EndWsgHumanWatcherMatch(Battleground* bg);
     void RecordWsgHumanSpell(Player* player, uint32 spellId, ObjectGuid targetGuid);
     void RecordWsgBotSpell(Player* player, uint32 spellId, ObjectGuid targetGuid);
-    void RecordWsgBotEvent(Player* player, char const* event, char const* reason = "unspecified");
+    void RecordWsgBotEvent(Player* player, char const* event, char const* reason = "unspecified",
+                           ObjectGuid targetGuid = ObjectGuid::Empty, uint32 spellId = 0, uint32 amount = 0);
     void RecordWsgHumanJump(Player* player);
     void RecordWsgHumanEvent(Player* player, char const* event, uint32 spellId, ObjectGuid targetGuid, uint32 amount = 0);
     void RecordWsgHumanMatchEvent(Battleground* bg, char const* event, TeamId winner = TEAM_NEUTRAL);

@@ -215,11 +215,16 @@ bool AttackAction::Attack(Unit* target, bool /*with_pet*/ /*true*/)
     }
 
     if (!inCombat || oldTarget != target)
-        sRandomPlayerbotMgr.RecordWsgBotEvent(bot, "engagement", "attack_selected");
+        sRandomPlayerbotMgr.RecordWsgBotEvent(bot, "engagement", "attack_selected", target->GetGUID());
     botAI->ChangeEngine(BOT_STATE_COMBAT);
 
-    if (!WaitForAttackStrategy::ShouldWait(botAI))
-        bot->Attack(target, shouldMelee);
+    if (WaitForAttackStrategy::ShouldWait(botAI))
+        sRandomPlayerbotMgr.RecordWsgBotEvent(bot, "attack_result", "wait", target->GetGUID());
+    else
+    {
+        bool const started = bot->Attack(target, shouldMelee);
+        sRandomPlayerbotMgr.RecordWsgBotEvent(bot, "attack_result", started ? "started" : "not_started", target->GetGUID());
+    }
     /* prevent pet dead immediately in group */
     // if (bot->GetMap()->IsDungeon() && bot->GetGroup() && !target->IsInCombat())
     // {
