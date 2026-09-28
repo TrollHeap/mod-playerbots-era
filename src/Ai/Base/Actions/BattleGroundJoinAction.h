@@ -39,8 +39,6 @@ class FreeBGJoinAction : public BGJoinAction
 {
 public:
     FreeBGJoinAction(PlayerbotAI* botAI, std::string const name = "free bg join") : BGJoinAction(botAI, name) {}
-
-    bool shouldJoinBg(BattlegroundQueueTypeId queueTypeId, BattlegroundBracketId bracketId) override;
 };
 
 class BGLeaveAction : public Action
