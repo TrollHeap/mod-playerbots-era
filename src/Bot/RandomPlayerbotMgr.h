@@ -102,6 +102,7 @@ public:
     void UpdateWsgHumanWatcher(uint32 elapsed);
     bool BeginWsgHumanWatcherMatch(Battleground* bg);
     void EndWsgHumanWatcherMatch(Battleground* bg);
+    bool IsWatchingWsgMatch(Battleground const* bg) const;
     void RecordWsgHumanSpell(Player* player, uint32 spellId, ObjectGuid targetGuid);
     void RecordWsgBotSpell(Player* player, uint32 spellId, ObjectGuid targetGuid);
     void RecordWsgBotEvent(Player* player, char const* event, char const* reason = "unspecified",
@@ -191,7 +192,6 @@ protected:
 private:
     friend class RpgEconomyAction;
     friend struct EraEconomyAccess;
-    bool IsWatchingWsgMatch(Battleground const* bg) const;
 
     RandomPlayerbotMgr() : PlayerbotHolder()
     {
