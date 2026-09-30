@@ -710,9 +710,12 @@ bool NewRpgBaseAction::SearchQuestGiverAndAcceptOrReward()
 ObjectGuid NewRpgBaseAction::ChooseNpcOrGameObjectToInteract(bool questgiverOnly, float distanceLimit)
 {
     GuidVector possibleTargets = AI_VALUE(GuidVector, "possible new rpg targets");
-    if (uint32 zone = botAI->GetCityResidentZone())
-        return ChooseCityResidentTarget(zone, possibleTargets, distanceLimit);
     GuidVector possibleGameObjects = AI_VALUE(GuidVector, "possible new rpg game objects");
+    if (uint32 zone = botAI->GetCityResidentZone())
+    {
+        possibleTargets.insert(possibleTargets.end(), possibleGameObjects.begin(), possibleGameObjects.end());
+        return ChooseCityResidentTarget(zone, possibleTargets, distanceLimit);
+    }
 
     if (possibleTargets.empty() && possibleGameObjects.empty())
         return ObjectGuid();
@@ -761,11 +764,9 @@ ObjectGuid NewRpgBaseAction::ChooseNpcOrGameObjectToInteract(bool questgiverOnly
     if (questgiverOnly)
         return ObjectGuid();
 
-    if (possibleTargets.empty())
-        return ObjectGuid();
-
-    int idx = urand(0, possibleTargets.size() - 1);
-    ObjectGuid guid = possibleTargets[idx];
+    size_t idx = urand(0, possibleTargets.size() + possibleGameObjects.size() - 1);
+    ObjectGuid guid = idx < possibleTargets.size() ? possibleTargets[idx] :
+        possibleGameObjects[idx - possibleTargets.size()];
     WorldObject* object = ObjectAccessor::GetCreatureOrPetOrVehicle(*bot, guid);
     if (!object)
         object = ObjectAccessor::GetGameObject(*bot, guid);

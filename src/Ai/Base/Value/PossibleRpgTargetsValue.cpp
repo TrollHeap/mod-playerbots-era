@@ -174,6 +174,8 @@ bool PossibleNewRpgTargetsValue::AcceptUnit(Unit* unit)
 
 const std::vector<GameobjectTypes> PossibleNewRpgGameObjectsValue::allowedGOFlags = {
     GAMEOBJECT_TYPE_QUESTGIVER,
+    GAMEOBJECT_TYPE_MAILBOX,
+    GAMEOBJECT_TYPE_GUILD_BANK,
 };
 
 GuidVector PossibleNewRpgGameObjectsValue::Calculate()

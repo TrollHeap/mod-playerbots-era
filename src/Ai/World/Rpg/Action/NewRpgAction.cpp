@@ -8,7 +8,10 @@
 #include "AreaDefines.h"
 #include "BroadcastHelper.h"
 #include "ChatHelper.h"
+#include "Creature.h"
 #include "DBCStores.h"
+#include "EraEconomy.h"
+#include "GameObject.h"
 #include "GossipDef.h"
 #include "IVMapMgr.h"
 #include "MotionMaster.h"
@@ -26,6 +29,8 @@
 #include "PlayerbotTextMgr.h"
 #include "QuestDef.h"
 #include "Random.h"
+#include "RandomPlayerbotMgr.h"
+#include "RpgEconomyLimits.h"
 #include "SharedDefines.h"
 #include "Timer.h"
 #include "TravelMgr.h"
@@ -415,6 +420,15 @@ bool NewRpgWanderNpcAction::Execute(Event /*event*/)
         if (!data.lastReach)
         {
             data.lastReach = getMSTime();
+            Creature* auctioneer = object->ToCreature();
+            GameObject* gameObject = object->ToGameObject();
+            bool economicTarget = (auctioneer && auctioneer->HasNpcFlag(UNIT_NPC_FLAG_AUCTIONEER)) ||
+                (gameObject && (gameObject->GetGoType() == GAMEOBJECT_TYPE_MAILBOX ||
+                                gameObject->GetGoType() == GAMEOBJECT_TYPE_GUILD_BANK));
+            if (economicTarget && !sRandomPlayerbotMgr.GetValue(bot, "economy_visit") &&
+                EraEconomy::QueueVisit(bot, data.npcOrGo))
+                sRandomPlayerbotMgr.SetEventValue(bot->GetGUID().GetCounter(), "economy_visit", 1,
+                                                  RPG_ECONOMY_VISIT_COOLDOWN_SECONDS);
             if (!botAI->GetCityResidentZone() && bot->CanInteractWithQuestGiver(object))
                 InteractWithNpcOrGameObjectForQuest(data.npcOrGo);
             return true;
