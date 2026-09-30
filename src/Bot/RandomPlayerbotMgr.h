@@ -191,6 +191,7 @@ protected:
 
 private:
     friend class RpgEconomyAction;
+    friend class NewRpgWanderNpcAction;
     friend struct EraEconomyAccess;
 
     RandomPlayerbotMgr() : PlayerbotHolder()
