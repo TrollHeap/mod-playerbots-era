@@ -7,6 +7,8 @@
 #include "PlayerbotFactory.h"
 #include "PlayerbotsDatabase.h"
 #include "AccountMgr.h"
+#include "Config.h"
+#include "EraWsgSkill.h"
 #include "AiFactory.h"
 #include "AiObjectContext.h"
 #include "ArenaTeam.h"
@@ -2500,6 +2502,9 @@ void PlayerbotFactory::InitEquipment(bool incremental, bool second_chance)
         }
 
         int32 desiredQuality = itemQuality;
+        if (level == 60 && sRandomPlayerbotMgr.IsRandomBot(bot) &&
+            sConfigMgr->GetOption<bool>("AiPlayerbot.EraWsgSkillTiers", true))
+            desiredQuality = EraWsgSkill::GearQualityFor(bot->GetGUID().GetCounter(), slot, itemQuality);
         if (urand(0, 100) < 100 * sPlayerbotAIConfig.randomGearLoweringChance && desiredQuality > ITEM_QUALITY_NORMAL)
             desiredQuality--;
 
