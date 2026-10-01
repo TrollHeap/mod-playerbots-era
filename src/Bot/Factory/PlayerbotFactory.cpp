@@ -58,7 +58,20 @@ static std::vector<uint32> initSlotsOrder = {EQUIPMENT_SLOT_TRINKET1, EQUIPMENT_
 
 bool PlayerbotFactory::HasMissingCoreGear() const
 {
-    for (uint8 slot : {EQUIPMENT_SLOT_SHOULDERS, EQUIPMENT_SLOT_CHEST, EQUIPMENT_SLOT_LEGS, EQUIPMENT_SLOT_FEET})
+    if (bot->GetLevel() != 60 || !sRandomPlayerbotMgr.IsRandomBot(bot))
+    {
+        for (uint8 slot : {EQUIPMENT_SLOT_SHOULDERS, EQUIPMENT_SLOT_CHEST, EQUIPMENT_SLOT_LEGS, EQUIPMENT_SLOT_FEET})
+            if (!bot->GetItemByPos(INVENTORY_SLOT_BAG_0, slot))
+                return true;
+        return false;
+    }
+
+    // The offhand may be unusable with a two-handed weapon or for this class.
+    for (uint8 slot : {EQUIPMENT_SLOT_HEAD, EQUIPMENT_SLOT_NECK, EQUIPMENT_SLOT_SHOULDERS, EQUIPMENT_SLOT_BACK,
+                       EQUIPMENT_SLOT_CHEST, EQUIPMENT_SLOT_WRISTS, EQUIPMENT_SLOT_HANDS, EQUIPMENT_SLOT_WAIST,
+                       EQUIPMENT_SLOT_LEGS, EQUIPMENT_SLOT_FEET, EQUIPMENT_SLOT_FINGER1, EQUIPMENT_SLOT_FINGER2,
+                       EQUIPMENT_SLOT_TRINKET1, EQUIPMENT_SLOT_TRINKET2, EQUIPMENT_SLOT_MAINHAND,
+                       EQUIPMENT_SLOT_RANGED})
         if (!bot->GetItemByPos(INVENTORY_SLOT_BAG_0, slot))
             return true;
 
@@ -2417,6 +2430,10 @@ void PlayerbotFactory::InitEquipment(bool incremental, bool second_chance)
 
     uint32 blevel = bot->GetLevel();
     int32 delta = std::min(blevel, 10u);
+    bool const eraGear = level == 60 && sRandomPlayerbotMgr.IsRandomBot(bot);
+    EraWsgSkill::GearRange const gearRange = EraWsgSkill::GearRangeFor(bot->GetGUID().GetCounter());
+    uint32 gearFallbackSlots = 0;
+    uint32 gearEmptySlots = 0;
 
     bool isPvp = sRandomPlayerbotMgr.IsSpecPvp(bot->GetGUID().GetCounter(), bot->getClass());
 
@@ -2472,7 +2489,10 @@ void PlayerbotFactory::InitEquipment(bool incremental, bool second_chance)
 
         Item* oldItem = bot->GetItemByPos(INVENTORY_SLOT_BAG_0, slot);
 
-        if (second_chance && oldItem)
+        if (eraGear && oldItem && oldItem->GetTemplate()->RequiredHonorRank)
+            continue;
+
+        if (second_chance && !eraGear && oldItem)
         {
             bot->DestroyItem(INVENTORY_SLOT_BAG_0, slot, true);
         }
@@ -2502,10 +2522,11 @@ void PlayerbotFactory::InitEquipment(bool incremental, bool second_chance)
         }
 
         int32 desiredQuality = itemQuality;
-        if (level == 60 && sRandomPlayerbotMgr.IsRandomBot(bot) &&
-            sConfigMgr->GetOption<bool>("AiPlayerbot.EraWsgSkillTiers", true))
-            desiredQuality = EraWsgSkill::GearQualityFor(bot->GetGUID().GetCounter(), slot, itemQuality);
-        if (urand(0, 100) < 100 * sPlayerbotAIConfig.randomGearLoweringChance && desiredQuality > ITEM_QUALITY_NORMAL)
+        if (eraGear)
+            desiredQuality = EraWsgSkill::TierFor(bot->GetGUID().GetCounter()) == EraWsgSkill::Tier::Weak ?
+                                 ITEM_QUALITY_RARE : ITEM_QUALITY_EPIC;
+        if (!eraGear && urand(0, 100) < 100 * sPlayerbotAIConfig.randomGearLoweringChance &&
+            desiredQuality > ITEM_QUALITY_NORMAL)
             desiredQuality--;
 
         do
@@ -2518,7 +2539,7 @@ void PlayerbotFactory::InitEquipment(bool incremental, bool second_chance)
                     for (uint32 itemId : sRandomItemMgr.GetEquipmentNew(requiredLevel, inventoryType))
                     {
                         uint32 skipProb = 25;
-                        if (urand(1, 100) <= skipProb)
+                        if (!eraGear && urand(1, 100) <= skipProb)
                             continue;
 
                         ItemTemplate const* proto = sObjectMgr->GetItemTemplate(itemId);
@@ -2570,15 +2591,22 @@ void PlayerbotFactory::InitEquipment(bool incremental, bool second_chance)
                     }
                 }
             }
-        } while (items[slot].size() < 25 && desiredQuality-- > ITEM_QUALITY_POOR);
+        } while ((eraGear || items[slot].size() < 25) && desiredQuality-- > ITEM_QUALITY_POOR);
 
         std::vector<std::pair<uint32, int32>>& ids = items[slot];
         if (ids.empty())
         {
+            if (eraGear)
+            {
+                ++gearEmptySlots;
+                LOG_WARN("playerbots", "Bot {} slot {}: no in-band gear ({}-{}), no candidates",
+                         bot->GetGUID().ToString(), slot, gearRange.min, gearRange.max);
+            }
             continue;
         }
 
         std::vector<std::pair<float, size_t>> candidates;
+        std::vector<std::pair<float, size_t>> inBand;
         float bestScoreForSlot = -1;
         for (size_t index = 0; index < ids.size(); index++)
         {
@@ -2597,7 +2625,7 @@ void PlayerbotFactory::InitEquipment(bool incremental, bool second_chance)
             }
 
             // Era: with a single pick only a new best can win, so keep the heavy check lazy.
-            if (sPlayerbotAIConfig.randomGearTopN == 1 && cur_score <= bestScoreForSlot)
+            if (!eraGear && sPlayerbotAIConfig.randomGearTopN == 1 && cur_score <= bestScoreForSlot)
                 continue;
             if (!CanEquipItem(proto))
                 continue;
@@ -2606,12 +2634,22 @@ void PlayerbotFactory::InitEquipment(bool incremental, bool second_chance)
                 continue;
             bestScoreForSlot = std::max(bestScoreForSlot, cur_score);
             candidates.push_back({cur_score, index});
+            if (eraGear && proto->ItemLevel >= gearRange.min && proto->ItemLevel <= gearRange.max)
+                inBand.push_back({cur_score, index});
         }
         uint32 bestItemForSlot = 0;
         int32 bestRandomPropForSlot = 0;
         if (!candidates.empty())
         {
-            auto [pickedScore, pickedIndex] = PickGearCandidate(candidates, sPlayerbotAIConfig.randomGearTopN, rand_norm());
+            if (eraGear && inBand.empty())
+            {
+                ++gearFallbackSlots;
+                LOG_WARN("playerbots", "Bot {} slot {}: no in-band gear ({}-{}), using fallback",
+                         bot->GetGUID().ToString(), slot, gearRange.min, gearRange.max);
+            }
+            auto [pickedScore, pickedIndex] = PickGearCandidate(inBand.empty() ? candidates : inBand,
+                sPlayerbotAIConfig.randomGearTopN,
+                eraGear ? EraWsgSkill::GearRoll(bot->GetGUID().GetCounter(), slot) : rand_norm());
             bestScoreForSlot = pickedScore;
             bestItemForSlot = ids[pickedIndex].first;
             bestRandomPropForSlot = ids[pickedIndex].second;
@@ -2619,6 +2657,12 @@ void PlayerbotFactory::InitEquipment(bool incremental, bool second_chance)
 
         if (bestItemForSlot == 0)
         {
+            if (eraGear)
+            {
+                ++gearEmptySlots;
+                LOG_WARN("playerbots", "Bot {} slot {}: no in-band gear ({}-{}), no usable candidates",
+                         bot->GetGUID().ToString(), slot, gearRange.min, gearRange.max);
+            }
             continue;
         }
         uint16 dest;
@@ -2670,7 +2714,7 @@ void PlayerbotFactory::InitEquipment(bool incremental, bool second_chance)
     }
     // Secondary init for better equips
     /// @todo: clean up duplicate code
-    if (second_chance)
+    if (second_chance && !eraGear)
     {
         for (int32 slot : initSlotsOrder)
         {
@@ -2695,6 +2739,10 @@ void PlayerbotFactory::InitEquipment(bool incremental, bool second_chance)
             if (slot == EQUIPMENT_SLOT_TRINKET1 && pvpTrinket1 != 0)
                 continue;
 
+            Item* oldItem = bot->GetItemByPos(INVENTORY_SLOT_BAG_0, slot);
+            if (eraGear && oldItem && oldItem->GetTemplate()->RequiredHonorRank)
+                continue;
+
             bool isTrinketSlot = (slot == EQUIPMENT_SLOT_TRINKET1 || slot == EQUIPMENT_SLOT_TRINKET2);
             calculator.SetExcludeResilience(isTrinketSlot);
 
@@ -2706,6 +2754,7 @@ void PlayerbotFactory::InitEquipment(bool incremental, bool second_chance)
                 continue;
 
             std::vector<std::pair<float, size_t>> candidates;
+            std::vector<std::pair<float, size_t>> inBand;
             float bestScoreForSlot = -1;
             for (size_t index = 0; index < ids.size(); index++)
             {
@@ -2724,7 +2773,7 @@ void PlayerbotFactory::InitEquipment(bool incremental, bool second_chance)
                 }
 
                 // Era: with a single pick only a new best can win, so keep the heavy check lazy.
-                if (sPlayerbotAIConfig.randomGearTopN == 1 && cur_score <= bestScoreForSlot)
+                if (!eraGear && sPlayerbotAIConfig.randomGearTopN == 1 && cur_score <= bestScoreForSlot)
                     continue;
                 if (!CanEquipItem(proto))
                     continue;
@@ -2733,12 +2782,16 @@ void PlayerbotFactory::InitEquipment(bool incremental, bool second_chance)
                     continue;
                 bestScoreForSlot = std::max(bestScoreForSlot, cur_score);
                 candidates.push_back({cur_score, index});
+                if (eraGear && proto->ItemLevel >= gearRange.min && proto->ItemLevel <= gearRange.max)
+                    inBand.push_back({cur_score, index});
             }
             uint32 bestItemForSlot = 0;
             int32 bestRandomPropForSlot = 0;
             if (!candidates.empty())
             {
-                auto [pickedScore, pickedIndex] = PickGearCandidate(candidates, sPlayerbotAIConfig.randomGearTopN, rand_norm());
+                auto [pickedScore, pickedIndex] = PickGearCandidate(inBand.empty() ? candidates : inBand,
+                    sPlayerbotAIConfig.randomGearTopN,
+                    eraGear ? EraWsgSkill::GearRoll(bot->GetGUID().GetCounter(), slot) : rand_norm());
                 bestScoreForSlot = pickedScore;
                 bestItemForSlot = ids[pickedIndex].first;
                 bestRandomPropForSlot = ids[pickedIndex].second;
@@ -2764,6 +2817,9 @@ void PlayerbotFactory::InitEquipment(bool incremental, bool second_chance)
             bot->AutoUnequipOffhandIfNeed();
         }
     }
+    if (eraGear && (gearFallbackSlots || gearEmptySlots))
+        LOG_WARN("playerbots", "Bot {} gear exceptions: {} fallback slots, {} empty slots",
+                 bot->GetGUID().ToString(), gearFallbackSlots, gearEmptySlots);
 }
 
 bool PlayerbotFactory::IsDesiredReplacement(Item* item)
