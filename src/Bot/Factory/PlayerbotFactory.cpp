@@ -2431,6 +2431,7 @@ void PlayerbotFactory::InitEquipment(bool incremental, bool second_chance)
     uint32 blevel = bot->GetLevel();
     int32 delta = std::min(blevel, 10u);
     bool const eraGear = level == 60 && sRandomPlayerbotMgr.IsRandomBot(bot);
+    EraWsgSkill::Tier const gearTier = EraWsgSkill::TierFor(bot->GetGUID().GetCounter());
     EraWsgSkill::GearRange const gearRange = EraWsgSkill::GearRangeFor(bot->GetGUID().GetCounter());
     uint32 gearFallbackSlots = 0;
     uint32 gearEmptySlots = 0;
@@ -2468,6 +2469,10 @@ void PlayerbotFactory::InitEquipment(bool incremental, bool second_chance)
     {
         if (slot == EQUIPMENT_SLOT_TABARD || slot == EQUIPMENT_SLOT_BODY)
             continue;
+
+        bool const coreArmorSlot = slot == EQUIPMENT_SLOT_HEAD || slot == EQUIPMENT_SLOT_SHOULDERS ||
+            slot == EQUIPMENT_SLOT_CHEST || slot == EQUIPMENT_SLOT_WAIST || slot == EQUIPMENT_SLOT_LEGS ||
+            slot == EQUIPMENT_SLOT_FEET || slot == EQUIPMENT_SLOT_WRISTS || slot == EQUIPMENT_SLOT_HANDS;
 
         if (level < 50 && (slot == EQUIPMENT_SLOT_TRINKET1 || slot == EQUIPMENT_SLOT_TRINKET2))
             continue;
@@ -2523,7 +2528,7 @@ void PlayerbotFactory::InitEquipment(bool incremental, bool second_chance)
 
         int32 desiredQuality = itemQuality;
         if (eraGear)
-            desiredQuality = EraWsgSkill::TierFor(bot->GetGUID().GetCounter()) == EraWsgSkill::Tier::Weak ?
+            desiredQuality = gearTier == EraWsgSkill::Tier::Weak ?
                                  ITEM_QUALITY_RARE : ITEM_QUALITY_EPIC;
         if (!eraGear && urand(0, 100) < 100 * sPlayerbotAIConfig.randomGearLoweringChance &&
             desiredQuality > ITEM_QUALITY_NORMAL)
@@ -2569,12 +2574,7 @@ void PlayerbotFactory::InitEquipment(bool incremental, bool second_chance)
                         if (proto->Quality != uint32(desiredQuality))
                             continue;
 
-                        if (proto->Class == ITEM_CLASS_ARMOR &&
-                            (slot == EQUIPMENT_SLOT_HEAD || slot == EQUIPMENT_SLOT_SHOULDERS ||
-                             slot == EQUIPMENT_SLOT_CHEST || slot == EQUIPMENT_SLOT_WAIST ||
-                             slot == EQUIPMENT_SLOT_LEGS || slot == EQUIPMENT_SLOT_FEET ||
-                             slot == EQUIPMENT_SLOT_WRISTS || slot == EQUIPMENT_SLOT_HANDS) &&
-                            !CanEquipArmor(proto))
+                        if (proto->Class == ITEM_CLASS_ARMOR && coreArmorSlot && !CanEquipArmor(proto))
                             continue;
 
                         if (proto->Class == ITEM_CLASS_WEAPON && !CanEquipWeapon(proto))
@@ -2634,7 +2634,8 @@ void PlayerbotFactory::InitEquipment(bool incremental, bool second_chance)
                 continue;
             bestScoreForSlot = std::max(bestScoreForSlot, cur_score);
             candidates.push_back({cur_score, index});
-            if (eraGear && proto->ItemLevel >= gearRange.min && proto->ItemLevel <= gearRange.max)
+            if (eraGear && proto->ItemLevel >= gearRange.min && proto->ItemLevel <= gearRange.max &&
+                EraWsgSkill::GearQualityAllowed(gearTier, coreArmorSlot, proto->Quality))
                 inBand.push_back({cur_score, index});
         }
         uint32 bestItemForSlot = 0;
